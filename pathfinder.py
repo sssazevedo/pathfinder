@@ -888,4 +888,3 @@ if __name__ == "__main__":
         ssl_ctx = (cert_file, key_file)
     app.run(debug=debug, ssl_context=ssl_ctx)
 
-}

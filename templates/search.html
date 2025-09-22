@@ -1,392 +1,405 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <meta charset="UTF-8">
-  <title>PathFinder - Buscar Conexão (v2)</title>
+    <meta charset="UTF-8">
+    <title>PathFinder - Buscar Conexão</title>
 
-  <!-- Mermaid.js -->
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 
-  <style>
-    body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,'Open Sans','Helvetica Neue',sans-serif;max-width:800px;margin:auto;padding:20px;background-color:#f4f4f9;color:#333}
-    .container{position:relative;background-color:#fff;padding:30px;border-radius:8px;box-shadow:0 4px 6px rgba(0,0,0,0.1)}
-    h1,h2{color:#005a9c}
-    .beta{background:#fff3cd;border:1px solid #ffeeba;color:#856404;border-radius:6px;padding:8px 12px;margin:8px 0 18px;font-size:.95rem}
-    input[type="text"],select{width:100%;padding:10px;margin-bottom:10px;border:1px solid #ccc;border-radius:4px;font-size:1rem;box-sizing:border-box}
-    button{padding:12px 20px;cursor:pointer;background-color:#007bff;color:white;border:none;border-radius:4px;font-size:1rem;transition:background-color .2s;width:100%}
-    button:hover{background-color:#0056b3}
-    button:disabled{background-color:#a0a0a0;cursor:not-allowed}
-    label{display:block;margin-bottom:5px;font-weight:bold}
-    #results,#history-container{margin-top:30px}
-    .error{background-color:#ffebee;color:#c62828;padding:15px;border-radius:4px;border-left:5px solid #c62828}
-    .logout-button{position:absolute;top:20px;right:20px;padding:8px 12px;font-size:.9rem;background-color:#6c757d;color:#fff;border:none;border-radius:4px;text-decoration:none;transition:background-color .2s}
-    .logout-button:hover{background:#5a6268}
-    .form-container{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-end}
-    .form-group{margin-bottom:0;flex-grow:1}
-    .id-group{flex-basis:250px}
-    .depth-group{flex-basis:200px}
-    .button-group{flex-basis:150px}
-    .path-results-container{border:1px solid #ddd;border-radius:8px;margin-top:20px}
-    .path-card{padding:15px;border-bottom:1px solid #eee}
-    .path-card:last-child{border-bottom:none}
-    .path-title{font-weight:bold;margin-bottom:12px;color:#333}
-    .path-summary{font-size:.95rem;color:#444;line-height:1.6}
-    .path-summary .ps-name{text-decoration:none;padding:0 2px;border-radius:2px}
-    .path-summary .ps-arrow{margin:0 6px;color:#90a4ae}
-    .path-summary .ps-start{font-weight:600;color:#2e7d32}
-    .path-summary .ps-end{font-weight:600;color:#c62828}
-    .path-summary .ps-ac{background:#fff7b0;border-bottom:2px solid #fbc02d}
-    .mermaid-container{margin-top:14px;padding:10px;border:1px solid #eee;border-radius:4px;background:#fafafa;overflow-x:auto}
-    .mermaid{text-align:center}
-    .export-toolbar{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0 4px}
-    .export-toolbar .btn-small{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:8px;border:1px solid #dfe3e8;background:#fff;color:#0d47a1;font-size:.92rem;cursor:pointer;width:auto}
-    .export-toolbar .btn-small:hover{background:#f4f7fb}
-    #history-list{list-style:none;padding:0}
-    .history-item{display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid #eee}
-    .history-item:last-child{border-bottom:none}
-    .history-item a{text-decoration:none;color:#007bff;cursor:pointer}
-    .history-item a:hover{text-decoration:underline}
-    #loader{display:none;margin-top:20px;text-align:center}
-    .spinner{border:4px solid #f3f3f3;border-top:4px solid #007bff;border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:0 auto 10px}
-    @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
-    body.loading #loader{display:block}
-    .footer{margin-top:40px;text-align:center;font-size:.9rem;color:#888}
-    .footer a{color:#555;text-decoration:none}
-    .footer a:hover{text-decoration:underline}
-  </style>
+    <style>
+        body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; background-color: #f4f7f6; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: auto; position: relative; background-color: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1,h2 { color:#005a9c; }
+
+        /* INÍCIO DA MODIFICAÇÃO - CABEÇALHO COM LOGO */
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e0e0e0; padding-bottom: 20px; margin-bottom: 20px; }
+        .header .logo img { max-width: 120px; }
+        .header nav a { margin-left: 20px; color: #007bff; text-decoration: none; font-weight: 500; }
+        .header nav a:hover { text-decoration: underline; }
+        h1 { margin-top: 0; }
+        /* FIM DA MODIFICAÇÃO */
+
+        .beta { background:#fff3cd; border:1px solid #ffeeba; color:#856404; border-radius:6px; padding:8px 12px; margin:8px 0 18px; font-size:.95rem; }
+        input[type="text"],select { width:100%; padding:10px; margin-bottom:10px; border:1px solid #ccc; border-radius:4px; font-size:1rem; box-sizing:border-box; }
+        button { padding:12px 20px; cursor:pointer; background-color:#007bff; color:white; border:none; border-radius:4px; font-size:1rem; transition:background-color .2s; width:100%; }
+        button:hover { background-color:#0056b3; }
+        button:disabled { background-color:#a0a0a0; cursor:not-allowed; }
+        label { display:block; margin-bottom:5px; font-weight:bold; }
+        #results,#history-container { margin-top:30px; }
+        .error { background-color:#ffebee; color:#c62828; padding:15px; border-radius:4px; border-left:5px solid #c62828; }
+        
+        /* O botão de logout agora está no cabeçalho */
+        .form-container { display:flex; flex-wrap:wrap; gap:20px; align-items:flex-end; }
+        .form-group { margin-bottom:0; flex-grow:1; }
+        .id-group { flex-basis:250px; }
+        .depth-group { flex-basis:200px; }
+        .button-group { flex-basis:150px; }
+        .path-results-container { border:1px solid #ddd; border-radius:8px; margin-top:20px; }
+        .path-card { padding:15px; border-bottom:1px solid #eee; }
+        .path-card:last-child { border-bottom:none; }
+        .path-title { font-weight:bold; margin-bottom:12px; color:#333; }
+        .path-summary { font-size:.95rem; color:#444; line-height:1.6; }
+        .path-summary .ps-name { text-decoration:none; padding:0 2px; border-radius:2px; }
+        .path-summary .ps-arrow { margin:0 6px; color:#90a4ae; }
+        .path-summary .ps-start { font-weight:600; color:#2e7d32; }
+        .path-summary .ps-end { font-weight:600; color:#c62828; }
+        .path-summary .ps-ac { background:#fff7b0; border-bottom:2px solid #fbc02d; }
+        .mermaid-container { margin-top:14px; padding:10px; border:1px solid #eee; border-radius:4px; background:#fafafa; overflow-x:auto; }
+        .mermaid { text-align:center; }
+        .export-toolbar { display:flex; flex-wrap:wrap; gap:10px; margin:12px 0 4px; }
+        .export-toolbar .btn-small { display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border-radius:8px; border:1px solid #dfe3e8; background:#fff; color:#0d47a1; font-size:.92rem; cursor:pointer; width:auto; }
+        .export-toolbar .btn-small:hover { background:#f4f7fb; }
+        #history-list { list-style:none; padding:0; }
+        .history-item { display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid #eee; }
+        .history-item:last-child { border-bottom:none; }
+        .history-item a { text-decoration:none; color:#007bff; cursor:pointer; }
+        .history-item a:hover { text-decoration:underline; }
+        #loader { display:none; margin-top:20px; text-align:center; }
+        .spinner { border:4px solid #f3f3f3; border-top:4px solid #007bff; border-radius:50%; width:40px; height:40px; animation:spin 1s linear infinite; margin:0 auto 10px; }
+        @keyframes spin { 0%{transform:rotate(0)} 100%{transform:rotate(360deg)} }
+        body.loading #loader { display:block; }
+        .footer { margin-top:40px; text-align:center; font-size:.9rem; color:#888; }
+        .footer a { color:#555; text-decoration:none; }
+        .footer a:hover { text-decoration:underline; }
+    </style>
 </head>
 <body id="page"
       data-p1="{{ person1_id or '' }}"
       data-p2="{{ person2_id or '' }}"
       data-depth="{{ (max_depth or 8)|int }}">
 
-  <div class="container">
-    <a href="{{ url_for('logout') }}" class="logout-button">Sair (Logout)</a>
-    <h1>PathFinder - Encontre as Conexões</h1>
-    <div class="beta">Beta — resultados podem conter imprecisões.</div>
-
-    <p>Insira os IDs de duas pessoas do FamilySearch e escolha a profundidade da busca.</p>
-
-    <form id="search-form" method="POST" action="{{ url_for('search') }}">
-      <div class="form-container">
-        <div class="form-group id-group">
-          <label for="person1_id">ID da Primeira Pessoa</label>
-          <input type="text" id="person1_id" name="person1_id" placeholder="ex: KWJZ-123" value="{{ person1_id or '' }}">
-        </div>
-        <div class="form-group id-group">
-          <label for="person2_id">ID da Segunda Pessoa</label>
-          <input type="text" id="person2_id" name="person2_id" placeholder="ex: L5J8-456" value="{{ person2_id or '' }}">
-        </div>
-        <div class="form-group depth-group">
-          <label for="max_depth">Profundidade da Busca</label>
-          <select id="max_depth" name="max_depth">
-            {% set md = (max_depth or 8)|int %}
-            <option value="4"  {% if md == 4  %}selected{% endif %}>Muito Rápida (~4 passos)</option>
-            <option value="6"  {% if md == 6  %}selected{% endif %}>Rápida (~8 passos)</option>
-            <option value="8"  {% if md == 8  %}selected{% endif %}>Normal (~12 passos)</option>
-            <option value="10" {% if md == 10 %}selected{% endif %}>Profunda (~16 passos)</option>
-            <option value="12" {% if md == 12 %}selected{% endif %}>Muito Profunda (~20 passos)</option>
-          </select>
-        </div>
-        <div class="form-group button-group">
-          <button type="submit">Encontrar Caminhos</button>
-        </div>
-      </div>
-
-      <div id="loader" aria-live="polite">
-        <div class="spinner"></div>
-        <p>Procurando caminhos... Isto pode demorar alguns minutos.</p>
-      </div>
-    </form>
-
-    <div id="results">
-      {% if error %}
-        <div class="error" style="margin-top: 20px;">{{ error }}</div>
-      {% endif %}
-
-      {% if paths %}
-        <div class="path-results-container">
-          {% for p in paths %}
-            <div class="path-card">
-              <div class="path-title">
-                Caminho {{ loop.index }}
-                <span style="font-weight: normal; color:#666;">
-                  — {{ p.p1_name }} → {{ p.p2_name }}
-                  {% if p.degree_label %} • <em>{{ p.degree_label }}</em>{% endif %}
-                </span>
-              </div>
-
-              <div class="path-summary">
-                {% for node in p.nodes %}
-                  {% set node_id = node.id if node.id is defined else (node['id'] if 'id' in node else node) %}
-                  {% set first_id = node_id.split('+')[0] %}
-                  <a
-                    class="ps-name {% if loop.first %}ps-start{% elif loop.last %}ps-end{% elif node.is_common_ancestor %}ps-ac{% endif %}"
-                    href="https://beta.familysearch.org/tree/person/details/{{ first_id }}"
-                    target="_blank" rel="noopener">
-                    {{ node.name }}
-                  </a>
-                  {% if not loop.last %}<span class="ps-arrow">→</span>{% endif %}
-                {% endfor %}
-              </div>
-
-              <div class="mermaid-container">
-                <h4>Visualização Gráfica</h4>
-                <div class="mermaid">
-                  {{ p.mermaid_data | safe }}
-                </div>
-              </div>
-
-              <div class="export-toolbar">
-                <button type="button" class="btn-small" onclick="downloadPNG(this)">Baixar PNG</button>
-                <button type="button" class="btn-small" onclick="downloadSVG(this)">Baixar SVG</button>
-                <button type="button" class="btn-small" onclick="exportPathPDF(this)">Baixar PDF</button>
-                <button type="button" class="btn-small" onclick="copySearchLink(false)">Copiar link da pesquisa</button>
-                <button type="button" class="btn-small" onclick="createPublicLink()">Criar Link Público</button>
-              </div>
-
+    <div class="container">
+        <div class="header">
+            <div class="logo">
+                <a href="{{ url_for('search') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="PathFinder Logo"></a>
             </div>
-          {% endfor %}
+            <nav>
+                <a href="{{ url_for('about') }}">Sobre</a>
+                <a href="{{ url_for('logout') }}">Sair</a>
+            </nav>
         </div>
-      {% elif not error and request.method == 'POST' %}
-        <div>Nenhum resultado para exibir.</div>
-      {% elif not error %}
-        <div>Preencha os IDs acima e clique em <em>Encontrar Caminhos</em>.</div>
-      {% endif %}
+        <h1>Encontre as Conexões</h1>
+        <div class="beta">Beta — resultados podem conter imprecisões.</div>
+
+        <p>Insira os IDs de duas pessoas do FamilySearch e escolha a profundidade da busca.</p>
+
+        <form id="search-form" method="POST" action="{{ url_for('search') }}">
+            <div class="form-container">
+                <div class="form-group id-group">
+                    <label for="person1_id">ID da Primeira Pessoa</label>
+                    <input type="text" id="person1_id" name="person1_id" placeholder="ex: KWJZ-123" value="{{ person1_id or '' }}">
+                </div>
+                <div class="form-group id-group">
+                    <label for="person2_id">ID da Segunda Pessoa</label>
+                    <input type="text" id="person2_id" name="person2_id" placeholder="ex: L5J8-456" value="{{ person2_id or '' }}">
+                </div>
+                <div class="form-group depth-group">
+                    <label for="max_depth">Profundidade da Busca</label>
+                    <select id="max_depth" name="max_depth">
+                        {% set md = (max_depth or 8)|int %}
+                        <option value="4"  {% if md == 4  %}selected{% endif %}>Muito Rápida (~4 passos)</option>
+                        <option value="6"  {% if md == 6  %}selected{% endif %}>Rápida (~8 passos)</option>
+                        <option value="8"  {% if md == 8  %}selected{% endif %}>Normal (~12 passos)</option>
+                        <option value="10" {% if md == 10 %}selected{% endif %}>Profunda (~16 passos)</option>
+                        <option value="12" {% if md == 12 %}selected{% endif %}>Muito Profunda (~20 passos)</option>
+                    </select>
+                </div>
+                <div class="form-group button-group">
+                    <button type="submit">Encontrar Caminhos</button>
+                </div>
+            </div>
+
+            <div id="loader" aria-live="polite">
+                <div class="spinner"></div>
+                <p>Procurando caminhos... Isto pode demorar alguns minutos.</p>
+            </div>
+        </form>
+
+        <div id="results">
+            {% if error %}
+                <div class="error" style="margin-top: 20px;">{{ error }}</div>
+            {% endif %}
+
+            {% if paths %}
+                <div class="path-results-container">
+                    {% for p in paths %}
+                        <div class="path-card">
+                            <div class="path-title">
+                                Caminho {{ loop.index }}
+                                <span style="font-weight: normal; color:#666;">
+                                    — {{ p.p1_name }} → {{ p.p2_name }}
+                                    {% if p.degree_label %} • <em>{{ p.degree_label }}</em>{% endif %}
+                                </span>
+                            </div>
+
+                            <div class="path-summary">
+                                {% for node in p.nodes %}
+                                    {% set node_id = node.id if node.id is defined else (node['id'] if 'id' in node else node) %}
+                                    {% set first_id = node_id.split('+')[0] %}
+                                    <a
+                                        class="ps-name {% if loop.first %}ps-start{% elif loop.last %}ps-end{% elif node.is_common_ancestor %}ps-ac{% endif %}"
+                                        href="https://beta.familysearch.org/tree/person/details/{{ first_id }}"
+                                        target="_blank" rel="noopener">
+                                        {{ node.name }}
+                                    </a>
+                                    {% if not loop.last %}<span class="ps-arrow">→</span>{% endif %}
+                                {% endfor %}
+                            </div>
+
+                            <div class="mermaid-container">
+                                <h4>Visualização Gráfica</h4>
+                                <div class="mermaid">
+                                    {{ p.mermaid_data | safe }}
+                                </div>
+                            </div>
+
+                            <div class="export-toolbar">
+                                <button type="button" class="btn-small" onclick="downloadPNG(this)">Baixar PNG</button>
+                                <button type="button" class="btn-small" onclick="downloadSVG(this)">Baixar SVG</button>
+                                <button type="button" class="btn-small" onclick="exportPathPDF(this)">Baixar PDF</button>
+                                <button type="button" class="btn-small" onclick="copySearchLink(false)">Copiar link da pesquisa</button>
+                                <button type="button" class="btn-small" onclick="createPublicLink()">Criar Link Público</button>
+                            </div>
+
+                        </div>
+                    {% endfor %}
+                </div>
+            {% elif not error and request.method == 'POST' %}
+                <div>Nenhum resultado para exibir.</div>
+            {% elif not error %}
+                <div>Preencha os IDs acima e clique em <em>Encontrar Caminhos</em>.</div>
+            {% endif %}
+        </div>
+
+        <div id="history-container">
+            <h2>Buscas Recentes</h2>
+            <ul id="history-list"></ul>
+        </div>
+
+        <div class="footer">
+            <p><a href="{{ url_for('about') }}">Sobre o PathFinder</a></p>
+        </div>
     </div>
 
-    <div id="history-container">
-      <h2>Buscas Recentes</h2>
-      <ul id="history-list"></ul>
-    </div>
-
-    <div class="footer">
-      <a href="{{ url_for('about') }}">Sobre o PathFinder</a>
-    </div>
-  </div>
-
-  <script>
-    // Mermaid
-    document.addEventListener('DOMContentLoaded', function () {
-      mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', theme: 'default' });
-      const nodes = Array.from(document.querySelectorAll('.mermaid'))
-        .filter(el => (el.textContent || '').trim().length > 0);
-      if (nodes.length) mermaid.run({ nodes });
-    });
-
-    // Loader
-    document.getElementById('search-form').addEventListener('submit', function () {
-      document.body.classList.add('loading');
-      const button = this.querySelector('button[type="submit"]');
-      if (button) { button.disabled = true; button.textContent = 'Processando...'; }
-    });
-
-    // Histórico
-    const historyList  = document.getElementById('history-list');
-    const searchForm   = document.getElementById('search-form');
-    const person1Input = document.getElementById('person1_id');
-    const person2Input = document.getElementById('person2_id');
-
-    function saveSearchToHistory(p1_id, p1_name, p2_id, p2_name) {
-      if (!p1_id || !p2_id || !p1_name || !p2_name) return;
-      let history = JSON.parse(localStorage.getItem('pathfinderHistory')) || [];
-      history = history.filter(item => !(item.p1_id === p1_id && item.p2_id === p2_id));
-      history.unshift({ p1_id, p1_name, p2_id, p2_name });
-      history = history.slice(0, 5);
-      localStorage.setItem('pathfinderHistory', JSON.stringify(history));
-      loadHistory();
-    }
-	
-	// Envia snapshot para /api/share e copia a URL
-	  async function createPublicLink(){
-		if (!window.__PF_SNAPSHOT__) {
-		  alert('Nenhum resultado para compartilhar.');
-		  return;
-		}
-		const payload = {
-		  person1_id: window.__PF_SNAPSHOT__.person1_id,
-		  person2_id: window.__PF_SNAPSHOT__.person2_id,
-		  max_depth:  window.__PF_SNAPSHOT__.max_depth,
-		  // só o necessário para o viewer
-		  paths: window.__PF_SNAPSHOT__.paths.map(p => ({
-			p1_name: p.p1_name,
-			p2_name: p.p2_name,
-			mermaid_data: p.mermaid_data
-		  }))
-		};
-		try{
-		  const res = await fetch("{{ url_for('create_share') }}", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(payload)
-		  });
-		  const j = await res.json();
-		  if (j.ok && j.url) {
-			await navigator.clipboard.writeText(j.url);
-			alert("Link público copiado!");
-		  } else {
-			alert("Falha ao criar link público: " + (j.error || res.status));
-		  }
-		}catch(err){
-		  console.error("[share] erro:", err);
-		  alert("Não foi possível criar o link público.");
-		}
-	  }
-
-	  // Expor
-	  window.createPublicLink = createPublicLink;
-
-    function loadHistory() {
-      let history = JSON.parse(localStorage.getItem('pathfinderHistory')) || [];
-      historyList.innerHTML = '';
-      if (history.length === 0) { historyList.innerHTML = '<li>Nenhuma busca recente.</li>'; return; }
-      history.forEach(item => {
-        const li = document.createElement('li');
-        li.className = 'history-item';
-        const link = document.createElement('a');
-        link.textContent = `${item.p1_name} → ${item.p2_name}`;
-        link.title = `Procurar por ${item.p1_id} e ${item.p2_id}`;
-        link.addEventListener('click', function(e) {
-          e.preventDefault();
-          person1Input.value = item.p1_id;
-          person2Input.value = item.p2_id;
-          document.body.classList.add('loading');
-          const btn = searchForm.querySelector('button[type="submit"]');
-          if (btn) { btn.disabled = true; btn.textContent = 'Processando...'; }
-          if (typeof searchForm.requestSubmit === 'function') { searchForm.requestSubmit(); }
-          else {
-            const evt = new Event('submit', { bubbles: true, cancelable: true });
-            if (searchForm.dispatchEvent(evt)) searchForm.submit();
-          }
+    <script>
+        // Mermaid
+        document.addEventListener('DOMContentLoaded', function () {
+            mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', theme: 'default' });
+            const nodes = Array.from(document.querySelectorAll('.mermaid'))
+            .filter(el => (el.textContent || '').trim().length > 0);
+            if (nodes.length) mermaid.run({ nodes });
         });
-        li.appendChild(link);
-        historyList.appendChild(li);
-      });
-    }
-    document.addEventListener('DOMContentLoaded', loadHistory);
 
-    /* Export/Share helpers (PNG/SVG/PDF + link público via /view) */
-    function getPageParams() {
-      const page = document.getElementById('page');
-      let p1 = page.getAttribute('data-p1') || '';
-      let p2 = page.getAttribute('data-p2') || '';
-      let d  = page.getAttribute('data-depth') || '8';
-      if (!p1) p1 = (document.getElementById('person1_id')?.value || '').trim();
-      if (!p2) p2 = (document.getElementById('person2_id')?.value || '').trim();
-      if (!d ) d  = (document.getElementById('max_depth')?.value || '8');
-      return { p1, p2, d };
-    }
-    function buildSearchURL(publicOnly) {
-      const { p1, p2, d } = getPageParams();
-      const base = window.location.origin + "/view";
-      const qp   = new URLSearchParams({ p1, p2, d });
-      if (publicOnly) qp.set('share','1');
-      return `${base}?${qp.toString()}`;
-    }
-    function copySearchLink(publicOnly){
-      const url = buildSearchURL(!!publicOnly);
-      if (navigator.clipboard?.writeText) {
-        navigator.clipboard.writeText(url).then(() => alert('Link copiado!'), () => fallbackCopy(url));
-      } else { fallbackCopy(url); }
-      function fallbackCopy(text){
-        const ta = document.createElement('textarea');
-        ta.value = text; document.body.appendChild(ta); ta.select();
-        try { document.execCommand('copy'); alert('Link copiado!'); } catch(e){ prompt('Copie o link:', text); }
-        document.body.removeChild(ta);
-      }
-    }
-    function downloadSVG(btn){
-      const card = btn.closest('.path-card');
-      const svg  = card.querySelector('.mermaid svg');
-      if(!svg){ alert('Gráfico ainda não renderizado.'); return; }
-      let source = svg.outerHTML;
-      if (!/^<\?xml/i.test(source)) source = '<?xml version="1.0" standalone="no"?>\n' + source;
-      const blob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'});
-      const url  = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'pathfinder-grafico.svg';
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-    async function downloadPNG(btn){
-      const card = btn.closest('.path-card');
-      const svg  = card.querySelector('.mermaid svg');
-      if(!svg){ alert('Gráfico ainda não renderizado.'); return; }
-      const vb = (svg.getAttribute('viewBox')||'').split(/\s+/).map(Number);
-      const w = vb.length === 4 ? vb[2] : (svg.clientWidth || 800);
-      const h = vb.length === 4 ? vb[3] : (svg.clientHeight|| 500);
-      const scale = 2;
-      const xml = new XMLSerializer().serializeToString(svg);
-      const svg64 = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
-      const img = new Image(); img.onload = function(){
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.round(w*scale); canvas.height = Math.round(h*scale);
-        const ctx = canvas.getContext('2d');
-        ctx.setTransform(scale,0,0,scale,0,0);
-        ctx.drawImage(img, 0, 0);
-        const png = canvas.toDataURL('image/png');
-        const a = document.createElement('a'); a.href = png; a.download = 'pathfinder-grafico.png';
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      };
-      img.src = svg64;
-    }
-    async function exportPathPDF(btn){
-      const card  = btn.closest('.path-card');
-      const title = (card.querySelector('.path-title')?.innerText || 'Caminho').trim();
-      const svgEl = card.querySelector('.mermaid svg');
-      if (!svgEl){ alert('Gráfico ainda não renderizado.'); return; }
-      // usa canvas local (sem CORS) -> imagem -> jsPDF
-      const xml = new XMLSerializer().serializeToString(svgEl);
-      const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
-      const img = new Image();
-      img.onload = () => {
-        const cw = img.width, ch = img.height, scale = 2;
-        const canvas = document.createElement('canvas');
-        canvas.width = cw*scale; canvas.height = ch*scale;
-        const ctx = canvas.getContext('2d');
-        ctx.setTransform(scale,0,0,scale,0,0);
-        ctx.drawImage(img, 0, 0);
-        const { jsPDF } = window.jspdf || {};
-        if (!jsPDF){ alert('jsPDF não disponível.'); return; }
-        const landscape = cw >= ch;
-        const pdf = new jsPDF({ orientation: landscape ? 'l' : 'p', unit: 'pt', format: 'a4' });
-        const pageW = pdf.internal.pageSize.getWidth();
-        const pageH = pdf.internal.pageSize.getHeight();
-        const margin = 24;
-        const maxW = pageW - margin*2, maxH = pageH - margin*2;
-        let w = maxW, h = ch * (maxW / cw);
-        if (h > maxH){ h = maxH; w = cw * (maxH / ch); }
-        const x = (pageW - w)/2, y = (pageH - h)/2;
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, w, h);
-        pdf.save(`PathFinder - ${title}.pdf`);
-      };
-      img.onerror = () => alert('Falha ao ler o SVG para imagem.');
-      img.src = url;
-    }
-    // Expor para onclick=""
-    window.copySearchLink = copySearchLink;
-    window.downloadSVG    = downloadSVG;
-    window.downloadPNG    = downloadPNG;
-    window.exportPathPDF  = exportPathPDF;
-  </script>
+        // Loader
+        document.getElementById('search-form').addEventListener('submit', function () {
+            document.body.classList.add('loading');
+            const button = this.querySelector('button[type="submit"]');
+            if (button) { button.disabled = true; button.textContent = 'Processando...'; }
+        });
 
-  {% if paths and paths|length > 0 %}
-  <script>
-    saveSearchToHistory('{{ person1_id }}', '{{ paths[0].p1_name|e }}', '{{ person2_id }}', '{{ paths[0].p2_name|e }}');
-  </script>
-  {% endif %}
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+        // Histórico
+        const historyList  = document.getElementById('history-list');
+        const searchForm   = document.getElementById('search-form');
+        const person1Input = document.getElementById('person1_id');
+        const person2Input = document.getElementById('person2_id');
+
+        function saveSearchToHistory(p1_id, p1_name, p2_id, p2_name) {
+            if (!p1_id || !p2_id || !p1_name || !p2_name) return;
+            let history = JSON.parse(localStorage.getItem('pathfinderHistory')) || [];
+            history = history.filter(item => !(item.p1_id === p1_id && item.p2_id === p2_id));
+            history.unshift({ p1_id, p1_name, p2_id, p2_name });
+            history = history.slice(0, 5);
+            localStorage.setItem('pathfinderHistory', JSON.stringify(history));
+            loadHistory();
+        }
+        
+        // Envia snapshot para /api/share e copia a URL
+        async function createPublicLink(){
+            if (!window.__PF_SNAPSHOT__) {
+                alert('Nenhum resultado para compartilhar.');
+                return;
+            }
+            const payload = {
+                person1_id: window.__PF_SNAPSHOT__.person1_id,
+                person2_id: window.__PF_SNAPSHOT__.person2_id,
+                max_depth:  window.__PF_SNAPSHOT__.max_depth,
+                // só o necessário para o viewer
+                paths: window.__PF_SNAPSHOT__.paths.map(p => ({
+                    p1_name: p.p1_name,
+                    p2_name: p.p2_name,
+                    mermaid_data: p.mermaid_data,
+                    degree_label: p.degree_label, // Adicionado
+                    nodes: p.nodes, // Adicionado
+                }))
+            };
+            try{
+                const res = await fetch("{{ url_for('create_share') }}", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+                const j = await res.json();
+                if (j.ok && j.url) {
+                    await navigator.clipboard.writeText(j.url);
+                    alert("Link público copiado!");
+                } else {
+                    alert("Falha ao criar link público: " + (j.error || res.status));
+                }
+            }catch(err){
+                console.error("[share] erro:", err);
+                alert("Não foi possível criar o link público.");
+            }
+        }
+
+        // Expor
+        window.createPublicLink = createPublicLink;
+
+        function loadHistory() {
+            let history = JSON.parse(localStorage.getItem('pathfinderHistory')) || [];
+            historyList.innerHTML = '';
+            if (history.length === 0) { historyList.innerHTML = '<li>Nenhuma busca recente.</li>'; return; }
+            history.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'history-item';
+                const link = document.createElement('a');
+                link.textContent = `${item.p1_name} → ${item.p2_name}`;
+                link.title = `Procurar por ${item.p1_id} e ${item.p2_id}`;
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    person1Input.value = item.p1_id;
+                    person2Input.value = item.p2_id;
+                    document.body.classList.add('loading');
+                    const btn = searchForm.querySelector('button[type="submit"]');
+                    if (btn) { btn.disabled = true; btn.textContent = 'Processando...'; }
+                    if (typeof searchForm.requestSubmit === 'function') { searchForm.requestSubmit(); }
+                    else {
+                        const evt = new Event('submit', { bubbles: true, cancelable: true });
+                        if (searchForm.dispatchEvent(evt)) searchForm.submit();
+                    }
+                });
+                li.appendChild(link);
+                historyList.appendChild(li);
+            });
+        }
+        document.addEventListener('DOMContentLoaded', loadHistory);
+
+        /* Export/Share helpers (PNG/SVG/PDF + link público via /view) */
+        function getPageParams() {
+            const page = document.getElementById('page');
+            let p1 = page.getAttribute('data-p1') || '';
+            let p2 = page.getAttribute('data-p2') || '';
+            let d  = page.getAttribute('data-depth') || '8';
+            if (!p1) p1 = (document.getElementById('person1_id')?.value || '').trim();
+            if (!p2) p2 = (document.getElementById('person2_id')?.value || '').trim();
+            if (!d ) d  = (document.getElementById('max_depth')?.value || '8');
+            return { p1, p2, d };
+        }
+        function buildSearchURL(publicOnly) {
+            const { p1, p2, d } = getPageParams();
+            const base = window.location.origin + "/view";
+            const qp   = new URLSearchParams({ p1, p2, d });
+            if (publicOnly) qp.set('share','1');
+            return `${base}?${qp.toString()}`;
+        }
+        function copySearchLink(publicOnly){
+            const url = buildSearchURL(!!publicOnly);
+            if (navigator.clipboard?.writeText) {
+                navigator.clipboard.writeText(url).then(() => alert('Link copiado!'), () => fallbackCopy(url));
+            } else { fallbackCopy(url); }
+            function fallbackCopy(text){
+                const ta = document.createElement('textarea');
+                ta.value = text; document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); alert('Link copiado!'); } catch(e){ prompt('Copie o link:', text); }
+                document.body.removeChild(ta);
+            }
+        }
+        function downloadSVG(btn){
+            const card = btn.closest('.path-card');
+            const svg  = card.querySelector('.mermaid svg');
+            if(!svg){ alert('Gráfico ainda não renderizado.'); return; }
+            let source = svg.outerHTML;
+            if (!/^<\?xml/i.test(source)) source = '<?xml version="1.0" standalone="no"?>\n' + source;
+            const blob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'});
+            const url  = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'pathfinder-grafico.svg';
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        async function downloadPNG(btn){
+            const card = btn.closest('.path-card');
+            const svg  = card.querySelector('.mermaid svg');
+            if(!svg){ alert('Gráfico ainda não renderizado.'); return; }
+            const vb = (svg.getAttribute('viewBox')||'').split(/\s+/).map(Number);
+            const w = vb.length === 4 ? vb[2] : (svg.clientWidth || 800);
+            const h = vb.length === 4 ? vb[3] : (svg.clientHeight|| 500);
+            const scale = 2;
+            const xml = new XMLSerializer().serializeToString(svg);
+            const svg64 = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+            const img = new Image(); img.onload = function(){
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.round(w*scale); canvas.height = Math.round(h*scale);
+                const ctx = canvas.getContext('2d');
+                ctx.setTransform(scale,0,0,scale,0,0);
+                ctx.drawImage(img, 0, 0);
+                const png = canvas.toDataURL('image/png');
+                const a = document.createElement('a'); a.href = png; a.download = 'pathfinder-grafico.png';
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            };
+            img.src = svg64;
+        }
+        async function exportPathPDF(btn){
+            const card  = btn.closest('.path-card');
+            const title = (card.querySelector('.path-title')?.innerText || 'Caminho').trim();
+            const svgEl = card.querySelector('.mermaid svg');
+            if (!svgEl){ alert('Gráfico ainda não renderizado.'); return; }
+            // usa canvas local (sem CORS) -> imagem -> jsPDF
+            const xml = new XMLSerializer().serializeToString(svgEl);
+            const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+            const img = new Image();
+            img.onload = () => {
+                const cw = img.width, ch = img.height, scale = 2;
+                const canvas = document.createElement('canvas');
+                canvas.width = cw*scale; canvas.height = ch*scale;
+                const ctx = canvas.getContext('2d');
+                ctx.setTransform(scale,0,0,scale,0,0);
+                ctx.drawImage(img, 0, 0);
+                const { jsPDF } = window.jspdf || {};
+                if (!jsPDF){ alert('jsPDF não disponível.'); return; }
+                const landscape = cw >= ch;
+                const pdf = new jsPDF({ orientation: landscape ? 'l' : 'p', unit: 'pt', format: 'a4' });
+                const pageW = pdf.internal.pageSize.getWidth();
+                const pageH = pdf.internal.pageSize.getHeight();
+                const margin = 24;
+                const maxW = pageW - margin*2, maxH = pageH - margin*2;
+                let w = maxW, h = ch * (maxW / cw);
+                if (h > maxH){ h = maxH; w = cw * (maxH / ch); }
+                const x = (pageW - w)/2, y = (pageH - h)/2;
+                pdf.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, w, h);
+                pdf.save(`PathFinder - ${title}.pdf`);
+            };
+            img.onerror = () => alert('Falha ao ler o SVG para imagem.');
+            img.src = url;
+        }
+        // Expor para onclick=""
+        window.copySearchLink = copySearchLink;
+        window.downloadSVG    = downloadSVG;
+        window.downloadPNG    = downloadPNG;
+        window.exportPathPDF  = exportPathPDF;
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
     {% if paths and paths|length > 0 %}
-	<script>
-	  window.__PF_SNAPSHOT__ = {
-		person1_id: "{{ person1_id }}",
-		person2_id: "{{ person2_id }}",
-		max_depth:  {{ (max_depth or 8)|int }},
-		paths: {{ paths|tojson }}
-	  };
-	  // também atualiza o histórico
-	  saveSearchToHistory('{{ person1_id }}', '{{ paths[0].p1_name|e }}', '{{ person2_id }}', '{{ paths[0].p2_name|e }}');
-	</script>
-	{% endif %}
+    <script>
+      window.__PF_SNAPSHOT__ = {
+        person1_id: "{{ person1_id }}",
+        person2_id: "{{ person2_id }}",
+        max_depth:  {{ (max_depth or 8)|int }},
+        paths: {{ paths|tojson }}
+      };
+      // também atualiza o histórico
+      saveSearchToHistory('{{ person1_id }}', '{{ paths[0].p1_name|e }}', '{{ person2_id }}', '{{ paths[0].p2_name|e }}');
+    </script>
+    {% endif %}
 </body>
 </html>

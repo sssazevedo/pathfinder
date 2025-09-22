@@ -6,13 +6,14 @@
     <style>
         body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; max-width: 800px; margin: auto; padding: 20px; background-color: #f4f4f9; color: #333; }
         .container { background-color: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        h1, h2 { color: #005a9c; }
-        p { line-height: 1.6; }
+        h1, h2 { color: #005a9c; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; }
+        p, li { line-height: 1.6; }
         a { color: #007bff; text-decoration: none; }
         a:hover { text-decoration: underline; }
-        .back-link { display: inline-block; margin-top: 20px; padding: 10px 15px; background-color: #6c757d; color: white; border-radius: 4px; }
+        .back-link { display: inline-block; margin-top: 20px; padding: 10px 15px; background-color: #6c757d; color: white; border-radius: 4px; text-decoration: none; }
         .back-link:hover { background-color: #5a6268; }
-        .footer { margin-top: 30px; font-size: 0.9em; color: #666; text-align: center; }
+        .footer { margin-top: 40px; font-size: 0.9em; color: #666; text-align: center; }
+        .beta-warning { background-color: #fff3cd; border-left: 5px solid #ffeeba; color: #856404; padding: 15px; margin: 20px 0; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -22,16 +23,43 @@
             O <strong>PathFinder</strong> é uma ferramenta desenvolvida para genealogistas e entusiastas da história da família que utilizam a plataforma FamilySearch. A sua missão é simples mas poderosa: descobrir e visualizar todos os caminhos de parentesco entre duas pessoas na vasta Árvore Familiar do FamilySearch.
         </p>
         <p>
-            Enquanto o FamilySearch tradicionalmente mostra apenas um único caminho de parentesco, o PathFinder utiliza um algoritmo de busca avançado para explorar a árvore em profundidade, revelando múltiplas ligações que podem existir devido a casamentos entre parentes (endogamia) ou outras relações complexas.
+            Enquanto o FamilySearch tradicionalmente mostra apenas um único caminho de parentesco, o PathFinder utiliza um algoritmo de busca avançado para explorar a árvore em profundidade, revelando múltiplas ligações que podem existir devido a casamentos entre parentes (endogamia) ou outras relações familiares complexas.
         </p>
-        
-        <h2>Tecnologia</h2>
+
+        <h2>Como Usar</h2>
+        <ol>
+            <li><strong>Conecte-se:</strong> Clique no botão "Conectar com FamilySearch" na página inicial. Você será levado ao site oficial do FamilySearch para autorizar a aplicação de forma segura.</li>
+            <li><strong>Insira os IDs:</strong> Na página de busca, preencha os campos com os IDs (ex: K123-ABC) das duas pessoas que você deseja conectar.</li>
+            <li><strong>Defina a Profundidade:</strong> Escolha a profundidade da busca. Uma busca mais profunda pode encontrar parentes mais distantes, mas pode demorar mais tempo.</li>
+            <li><strong>Explore os Caminhos:</strong> Analise os resultados! O PathFinder irá mostrar os caminhos de parentesco encontrados, destacando o ancestral em comum e o grau de parentesco.</li>
+        </ol>
+
+        <div class="beta-warning">
+            <h2>Aviso Importante: Versão Beta</h2>
+            <p>
+                Esta ferramenta está em fase de testes (beta). Agradecemos a sua compreensão e paciência!
+            </p>
+            <ul>
+                <li><strong>Base de Dados Beta:</strong> Atualmente, o PathFinder conecta-se ao ambiente de testes (Beta) do FamilySearch. Isto significa que os dados da árvore podem ser uma "fotografia" mais antiga e não refletir as alterações mais recentes feitas no site principal.</li>
+                <li><strong>Possíveis Erros:</strong> Por estar em desenvolvimento, a aplicação pode apresentar erros inesperados ou instabilidade.</li>
+            </ul>
+        </div>
+
+        <h2>Privacidade</h2>
         <p>
-            A aplicação foi construída em Python, utilizando o microframework Flask para o servidor web. A interação com os dados da Árvore Familiar é feita através da API oficial do FamilySearch para desenvolvedores.
+            A sua privacidade é fundamental. O PathFinder não armazena nenhuma informação pessoal da sua conta do FamilySearch. A aplicação apenas utiliza um token de acesso temporário, fornecido pelo FamilySearch durante a sua sessão, para ler os dados da árvore genealógica em seu nome.
+        </p>
+
+        <h2>Feedback e Sugestões</h2>
+        <p>
+            A sua opinião é muito importante para melhorar o PathFinder! Se você encontrar algum problema, tiver uma sugestão de melhoria ou apenas quiser partilhar uma descoberta interessante que fez com a ferramenta, por favor, entre em contato.
+        </p>
+        <p>
+            A melhor forma de enviar feedback é através da secção "Issues" do nosso projeto no GitHub.
         </p>
 
         <div class="footer">
-            <p>Desenvolvido por Sandro Stefano Sá Azevedo.</p>
+            <p>Desenvolvido por Sandro Stéfano Sá Azevedo.</p>
             <p><a href="https://github.com/sssazevedo/pathfinder" target="_blank" rel="noopener">Veja o projeto no GitHub</a></p>
         </div>
 

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <title>PathFinder — Visualização (somente leitura)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- OpenGraph para prévias em WhatsApp/Slack -->
+  <meta property="og:title" content="Conexões no FamilySearch" />
+  <meta property="og:description" content="Visualização compartilhada do PathFinder (somente leitura)" />
+  <meta property="og:type" content="website" />
+  <style>
+    body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,'Open Sans','Helvetica Neue',sans-serif;background:#f4f4f9;margin:0}
+    .container{max-width:920px;margin:24px auto;background:#fff;border-radius:10px;box-shadow:0 4px 10px rgba(0,0,0,.08);padding:28px}
+    h1{margin:0 0 4px;color:#0a4a86}
+    .beta{background:#fff3cd;border:1px solid #ffeeba;color:#856404;border-radius:6px;padding:8px 12px;margin:8px 0 18px;font-size:.95rem}
+    .muted{color:#666;font-size:.95rem;margin-bottom:18px}
+    .path-card{border:1px solid #eee;border-radius:8px;padding:14px 14px 8px;margin:16px 0 24px}
+    .title-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+    .title-row h2{font-size:1rem;margin:0}
+    .btn{appearance:none;border:1px solid #d0d7de;background:#fff;border-radius:6px;padding:8px 12px;font-size:.9rem;cursor:pointer}
+    .btn:hover{background:#f6f8fa}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap}
+    .mermaid-wrap{border:1px solid #eee;border-radius:8px;background:#fafafa;margin-top:10px;overflow:auto;padding:10px}
+    footer{margin-top:18px;color:#888;font-size:.9rem;text-align:center}
+    .error{background:#ffebee;border-left:4px solid #d32f2f;color:#b71c1c;padding:10px;border-radius:6px;margin-bottom:16px}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>PathFinder — Visualização</h1>
+    <div class="beta">Beta — resultados podem conter imprecisões.</div>
+
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
+
+    {% if data %}
+      <div class="muted">
+        Somente leitura • IDs: {{ data.person1_id }} → {{ data.person2_id }} • Profundidade: {{ data.max_depth }}
+      </div>
+
+      <div class="toolbar" style="margin-bottom:12px">
+        <button class="btn" id="btnCopyLink">Copiar link</button>
+      </div>
+
+      {% for p in data.paths %}
+        <div class="path-card">
+          <div class="title-row">
+            <h2>
+			  Caminho {{ loop.index }} — {{ p.p1_name }} → {{ p.p2_name }}
+			  {% if p.degree_label %} • <em>{{ p.degree_label }}</em>{% endif %}
+			</h2>
+
+            <div class="toolbar">
+              <button class="btn" onclick="downloadSVG({{ loop.index0 }})">Baixar SVG</button>
+              <button class="btn" onclick="downloadPNG({{ loop.index0 }})">Baixar PNG</button>
+            </div>
+          </div>
+          <div class="mermaid-wrap">
+            <div class="mermaid" id="g{{ loop.index0 }}">{{ p.mermaid_data | safe }}</div>
+          </div>
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    <footer>
+      {% if slug %}Compartilhamento: {{ slug }}{% else %}Visualização pública instantânea{% endif %}
+    </footer>
+  </div>
+
+<script>
+  // Mermaid
+  mermaid.initialize({ startOnLoad:false, securityLevel:'loose', theme:'default' });
+  document.addEventListener('DOMContentLoaded', () => {
+    const graphs = document.querySelectorAll('.mermaid');
+    if (graphs.length) mermaid.run({ nodes: graphs });
+
+    // Copiar link
+    document.getElementById('btnCopyLink')?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        alert('Link copiado!');
+      } catch { alert('Não foi possível copiar. Copie manualmente da barra do navegador.'); }
+    });
+  });
+
+  // ---- Export helpers ----
+  function svgTextOf(idx){
+    const svg = document.querySelector(`#g${idx} svg`);
+    if(!svg){ alert('Gráfico ainda não foi renderizado.'); return null; }
+    const xml = new XMLSerializer().serializeToString(svg);
+    return `<?xml version="1.0" encoding="UTF-8"?>\n` + xml;
+  }
+  function download(filename, mime, content){
+    const blob = new Blob([content], {type:mime});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
+  }
+  window.downloadSVG = function(idx){
+    const txt = svgTextOf(idx);
+    if(!txt) return;
+    download(`pathfinder-${idx+1}.svg`, 'image/svg+xml;charset=utf-8', txt);
+  }
+  window.downloadPNG = function(idx){
+    const txt = svgTextOf(idx);
+    if(!txt) return;
+    const img = new Image();
+    img.onload = function(){
+      const scale = 2; // 2x para boa definição
+      const w = img.width, h = img.height;
+      const canvas = document.createElement('canvas');
+      canvas.width = w * scale; canvas.height = h * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(scale,0,0,scale,0,0);
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob((blob)=>{
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `pathfinder-${idx+1}.png`;
+        document.body.appendChild(a); a.click();
+        setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
+      }, 'image/png');
+    };
+    img.onerror = ()=>alert('Falha ao rasterizar o SVG.');
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(txt);
+  }
+</script>
+</body>
+</html>

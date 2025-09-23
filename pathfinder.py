@@ -167,7 +167,7 @@ def get_headers(access_token=None):
 # Cache TTL para /persons/{id}
 # -------------------------------------------------------------
 CACHE_TTL = int(os.getenv("CACHE_TTL_SECONDS", "900"))  # 15 min padrão
-CACHE_MAX = int(os.getenv("CACHE_MAX", "5000"))
+CACHE_MAX = int(os.getenv("CACHE_MAX", "2500"))
 
 class TTLCache:
     def __init__(self, ttl=CACHE_TTL, max_items=CACHE_MAX):
@@ -372,7 +372,7 @@ def post_process_paths(paths_with_ancestors, headers, keep_within=3, max_paths=8
 # Busca (BFS) – sobe APENAS por pais dos dois lados
 # -------------------------------------------------------------
 def find_paths(person1_id, person2_id, headers, max_depth=8):
-    max_nodes = 20000
+    max_nodes = 10000
     expanded = 0
 
     q1, q2 = deque(), deque()

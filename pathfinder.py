@@ -212,9 +212,18 @@ def get_person_with_relatives(person_id, headers):
         return cached
 
     url = f"{API_BASE_URL}/platform/tree/persons/{person_id}"
+    
+    if DEBUG_FS: print(f"[DEBUG] Tentando conectar a: {url}")
+    
     try:
         r = session_http.get(url, headers=headers, verify=False, timeout=DEFAULT_TIMEOUT)
+        
+        if DEBUG_FS: print(f"[DEBUG] Recebida resposta da API para {person_id}. Status: {r.status_code}")
+        
     except requests.exceptions.RequestException:
+        
+        if DEBUG_FS: print(f"[DEBUG] ERRO DE CONEXÃO para {person_id}: {e}")
+    
         result = (None, [], [], [])
         _person_cache.set(person_id, result)
         return result

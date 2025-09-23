@@ -224,6 +224,9 @@ def get_person_with_relatives(person_id, headers):
 
     if r.status_code == 200:
         data = r.json()
+        
+        if DEBUG_FS: print(f"[DEBUG] API Response for {person_id}: Parents={list(parents)}, Spouses={list(spouses)}")
+        
         if data.get("persons"):
             details = data["persons"][0]
 
@@ -377,6 +380,9 @@ def find_paths(person1_id, person2_id, headers, max_depth=8):
     best_len = None
 
     while depth < max_depth and len(paths_with_ancestors) < 50 and expanded < max_nodes:
+        
+        if DEBUG_FS: print(f"\n[DEBUG] Depth: {depth}, Q1 size: {len(q1)}, Q2 size: {len(q2)}, Expanded: {expanded}")
+        
         # fronteira 1
         q1_size = len(q1)
         if not q1_size: break

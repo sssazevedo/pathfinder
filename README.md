@@ -18,4 +18,4 @@ Enquanto a ferramenta nativa geralmente mostra apenas um caminho, o PathFinder r
     SECRET_KEY=UMA_CHAVE_SECRETA_ALEATORIA_LONGA
     FLASK_DEBUG=1
     ```
-5.  Execute a aplicação: `python flask_app.py`
+5.  Execute a aplicação: `python pathfinder.py`

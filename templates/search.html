@@ -3,9 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>PathFinder - Buscar Conexão</title>
-
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-
     <style>
         body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; background-color: #f4f7f6; color: #333; margin: 0; padding: 20px; }
         .container { max-width: 800px; margin: auto; position: relative; background-color: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
@@ -32,7 +30,7 @@
         .path-card { padding:15px; border-bottom:1px solid #eee; }
         .path-card:last-child { border-bottom:none; }
         .path-title { font-weight:bold; margin-bottom:12px; color:#333; }
-        .path-summary { font-size:.95rem; color:#444; line-height:1.6; }
+        .path-summary { font-size:.95rem; color:#444; line-height:1.6; word-break: break-word; }
         .path-summary .ps-name { text-decoration:none; padding:0 2px; border-radius:2px; }
         .path-summary .ps-arrow { margin:0 6px; color:#90a4ae; }
         .path-summary .ps-start { font-weight:600; color:#2e7d32; }
@@ -178,22 +176,23 @@
     </div>
 
     <script>
-        // Mermaid
         document.addEventListener('DOMContentLoaded', function () {
+            // Mermaid
             mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', theme: 'default' });
-            const nodes = Array.from(document.querySelectorAll('.mermaid'))
-            .filter(el => (el.textContent || '').trim().length > 0);
+            const nodes = Array.from(document.querySelectorAll('.mermaid')).filter(el => (el.textContent || '').trim().length > 0);
             if (nodes.length) mermaid.run({ nodes });
-        });
 
-        // Loader
-        document.getElementById('search-form').addEventListener('submit', function () {
-            document.body.classList.add('loading');
-            const button = this.querySelector('button[type="submit"]');
-            if (button) { button.disabled = true; button.textContent = 'Processando...'; }
-        });
+            // Loader
+            document.getElementById('search-form').addEventListener('submit', function () {
+                document.body.classList.add('loading');
+                const button = this.querySelector('button[type="submit"]');
+                if (button) { button.disabled = true; button.textContent = 'Processando...'; }
+            });
 
-        // Histórico
+            // Histórico
+            loadHistory();
+        });
+        
         const historyList  = document.getElementById('history-list');
         const searchForm   = document.getElementById('search-form');
         const person1Input = document.getElementById('person1_id');
@@ -208,11 +207,30 @@
             localStorage.setItem('pathfinderHistory', JSON.stringify(history));
             loadHistory();
         }
-        
+
+        function loadHistory() {
+            let history = JSON.parse(localStorage.getItem('pathfinderHistory')) || [];
+            historyList.innerHTML = '';
+            if (history.length === 0) { historyList.innerHTML = '<li>Nenhuma busca recente.</li>'; return; }
+            history.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'history-item';
+                const link = document.createElement('a');
+                link.textContent = `${item.p1_name} → ${item.p2_name}`;
+                link.title = `Procurar por ${item.p1_id} e ${item.p2_id}`;
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    person1Input.value = item.p1_id;
+                    person2Input.value = item.p2_id;
+                    searchForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                });
+                li.appendChild(link);
+                historyList.appendChild(li);
+            });
+        }
+
         async function createPublicLink(){
-            if (!window.__PF_SNAPSHOT__) {
-                alert('Nenhum resultado para compartilhar.'); return;
-            }
+            if (!window.__PF_SNAPSHOT__) { alert('Nenhum resultado para compartilhar.'); return; }
             const payload = {
                 person1_id: window.__PF_SNAPSHOT__.person1_id,
                 person2_id: window.__PF_SNAPSHOT__.person2_id,
@@ -242,66 +260,31 @@
         }
         window.createPublicLink = createPublicLink;
 
-        function loadHistory() {
-            let history = JSON.parse(localStorage.getItem('pathfinderHistory')) || [];
-            historyList.innerHTML = '';
-            if (history.length === 0) { historyList.innerHTML = '<li>Nenhuma busca recente.</li>'; return; }
-            history.forEach(item => {
-                const li = document.createElement('li');
-                li.className = 'history-item';
-                const link = document.createElement('a');
-                link.textContent = `${item.p1_name} → ${item.p2_name}`;
-                link.title = `Procurar por ${item.p1_id} e ${item.p2_id}`;
-                link.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    person1Input.value = item.p1_id;
-                    person2Input.value = item.p2_id;
-                    document.body.classList.add('loading');
-                    const btn = searchForm.querySelector('button[type="submit"]');
-                    if (btn) { btn.disabled = true; btn.textContent = 'Processando...'; }
-                    if (typeof searchForm.requestSubmit === 'function') {
-                        searchForm.requestSubmit();
-                    } else {
-                        searchForm.submit();
-                    }
-                });
-                li.appendChild(link);
-                historyList.appendChild(li);
-            });
-        }
-        document.addEventListener('DOMContentLoaded', loadHistory);
-
-        /* --- Funções de Exportação Corrigidas --- */
-        function getPageParams() {
-            const page = document.getElementById('page');
-            let p1 = page.getAttribute('data-p1') || (document.getElementById('person1_id')?.value || '').trim();
-            let p2 = page.getAttribute('data-p2') || (document.getElementById('person2_id')?.value || '').trim();
-            let d  = page.getAttribute('data-depth') || (document.getElementById('max_depth')?.value || '8');
-            return { p1, p2, d };
-        }
-
         function copySearchLink(publicOnly){
-            const { p1, p2, d } = getPageParams();
-            const base = window.location.origin + "/view";
-            const qp   = new URLSearchParams({ p1, p2, d });
+            const p1 = (document.getElementById('person1_id')?.value || '').trim();
+            const p2 = (document.getElementById('person2_id')?.value || '').trim();
+            const d  = (document.getElementById('max_depth')?.value || '8');
+            const qp = new URLSearchParams({ p1, p2, d });
             if (publicOnly) qp.set('share','1');
-            const url = `${base}?${qp.toString()}`;
+            const url = `${window.location.origin}/view?${qp.toString()}`;
             navigator.clipboard.writeText(url).then(() => alert('Link copiado!'), () => prompt('Copie o link:', url));
         }
+        window.copySearchLink = copySearchLink;
 
-        function getSvgAndTitle(btn) {
+        /* --- Funções de Exportação Robustas --- */
+        async function getSvgAndTitle(btn) {
             const card = btn.closest('.path-card');
             if (!card) return {};
             const svg  = card.querySelector('.mermaid svg');
-            if(!svg){ alert('Gráfico ainda não renderizado.'); return {}; }
+            if(!svg){ alert('Gráfico ainda não foi renderizado.'); return {}; }
             const title = (card.querySelector('.path-title')?.innerText || 'Caminho').trim();
             const xml = new XMLSerializer().serializeToString(svg);
             const source = `<?xml version="1.0" standalone="no"?>\n` + xml;
             return { source, title, svg };
         }
 
-        function downloadSVG(btn){
-            const { source, title } = getSvgAndTitle(btn);
+        async function downloadSVG(btn){
+            const { source, title } = await getSvgAndTitle(btn);
             if (!source) return;
             const blob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'});
             const url  = URL.createObjectURL(blob);
@@ -310,22 +293,26 @@
             document.body.appendChild(a); a.click(); document.body.removeChild(a);
             URL.revokeObjectURL(url);
         }
+        window.downloadSVG = downloadSVG;
         
         async function downloadPNG(btn){
-            const { source, title, svg } = getSvgAndTitle(btn);
+            const { source, title, svg } = await getSvgAndTitle(btn);
             if (!source) return;
+            
             const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(source);
             const img = new Image();
             img.onload = () => {
-                const w = Math.max(1, img.width), h = Math.max(1, img.height);
-                const SCALE = 2; // Qualidade
-                const PAD = 24;  // Margem de segurança em pixels
+                const { width, height } = svg.getBoundingClientRect(); // Mede o tamanho real
+                const SCALE = 2; 
+                const PAD = 20;
                 const canvas = document.createElement('canvas');
-                canvas.width = Math.round((w + PAD*2) * SCALE);
-                canvas.height = Math.round((h + PAD*2) * SCALE);
+                canvas.width = (width + PAD*2) * SCALE;
+                canvas.height = (height + PAD*2) * SCALE;
                 const ctx = canvas.getContext('2d');
-                ctx.setTransform(SCALE, 0, 0, SCALE, PAD, PAD); // Adiciona padding
-                ctx.drawImage(img, 0, 0);
+                ctx.scale(SCALE, SCALE);
+                ctx.fillStyle = '#FFFFFF'; // Fundo branco
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, PAD, PAD);
 
                 const a = document.createElement('a');
                 a.href = canvas.toDataURL('image/png');
@@ -335,9 +322,10 @@
             img.onerror = () => alert('Falha ao ler o SVG para imagem.');
             img.src = url;
         }
+        window.downloadPNG = downloadPNG;
 
         async function exportPathPDF(btn){
-            const { source, title, svg } = getSvgAndTitle(btn);
+            const { source, title, svg } = await getSvgAndTitle(btn);
             if (!source) return;
             
             const { jsPDF } = window.jspdf || {};
@@ -346,19 +334,21 @@
             const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(source);
             const img = new Image();
             img.onload = () => {
-                const w = Math.max(1, img.width), h = Math.max(1, img.height);
+                const { width, height } = svg.getBoundingClientRect();
                 const SCALE = 2;
-                const PAD = 24;
-
+                const PAD = 40; // Mais padding para PDF
+                
                 const canvas = document.createElement('canvas');
-                canvas.width  = Math.round((w + PAD*2) * SCALE);
-                canvas.height = Math.round((h + PAD*2) * SCALE);
+                canvas.width  = (width + PAD*2) * SCALE;
+                canvas.height = (height + PAD*2) * SCALE;
                 const ctx = canvas.getContext('2d');
-                ctx.setTransform(SCALE,0,0,SCALE,PAD,PAD);
-                ctx.drawImage(img, 0, 0);
-
-                const totalW = w + PAD*2;
-                const totalH = h + PAD*2;
+                ctx.scale(SCALE, SCALE);
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, PAD, PAD);
+                
+                const totalW = width + PAD*2;
+                const totalH = height + PAD*2;
 
                 const landscape = totalW >= totalH;
                 const pdf = new jsPDF({ orientation: landscape ? 'l' : 'p', unit: 'pt', format: 'a4' });
@@ -371,7 +361,7 @@
                 const maxH = pageH - margin*2;
 
                 let drawW = maxW, drawH = totalH * (maxW / totalW);
-                if (drawH > maxH) { drawH = maxH; drawW = totalW * (maxH / totalH); }
+                if (drawH > maxH) { drawH = maxH; drawW = totalH * (maxH / totalH); }
 
                 const x = (pageW - drawW)/2;
                 const y = (pageH - drawH)/2;
@@ -382,11 +372,8 @@
             img.onerror = () => alert('Falha ao ler o SVG para imagem.');
             img.src = url;
         }
+        window.exportPathPDF = exportPathPDF;
 
-        window.copySearchLink = copySearchLink;
-        window.downloadSVG    = downloadSVG;
-        window.downloadPNG    = downloadPNG;
-        window.exportPathPDF  = exportPathPDF;
     </script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
     {% if paths and paths|length > 0 %}

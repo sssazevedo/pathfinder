@@ -350,38 +350,67 @@
             img.src = svg64;
         }
         async function exportPathPDF(btn){
-            const card  = btn.closest('.path-card');
-            const title = (card.querySelector('.path-title')?.innerText || 'Caminho').trim();
-            const svgEl = card.querySelector('.mermaid svg');
-            if (!svgEl){ alert('Gráfico ainda não renderizado.'); return; }
-            // usa canvas local (sem CORS) -> imagem -> jsPDF
-            const xml = new XMLSerializer().serializeToString(svgEl);
-            const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
-            const img = new Image();
-            img.onload = () => {
-                const cw = img.width, ch = img.height, scale = 2;
-                const canvas = document.createElement('canvas');
-                canvas.width = cw*scale; canvas.height = ch*scale;
-                const ctx = canvas.getContext('2d');
-                ctx.setTransform(scale,0,0,scale,0,0);
-                ctx.drawImage(img, 0, 0);
-                const { jsPDF } = window.jspdf || {};
-                if (!jsPDF){ alert('jsPDF não disponível.'); return; }
-                const landscape = cw >= ch;
-                const pdf = new jsPDF({ orientation: landscape ? 'l' : 'p', unit: 'pt', format: 'a4' });
-                const pageW = pdf.internal.pageSize.getWidth();
-                const pageH = pdf.internal.pageSize.getHeight();
-                const margin = 24;
-                const maxW = pageW - margin*2, maxH = pageH - margin*2;
-                let w = maxW, h = ch * (maxW / cw);
-                if (h > maxH){ h = maxH; w = cw * (maxH / ch); }
-                const x = (pageW - w)/2, y = (pageH - h)/2;
-                pdf.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, w, h);
-                pdf.save(`PathFinder - ${title}.pdf`);
-            };
-            img.onerror = () => alert('Falha ao ler o SVG para imagem.');
-            img.src = url;
-        }
+			const card  = btn.closest('.path-card');
+			const title = (card.querySelector('.path-title,h2')?.innerText || 'Caminho').trim();
+			const svgEl = card.querySelector('.mermaid svg');
+			if (!svgEl){ alert('Gráfico ainda não renderizado.'); return; }
+
+			// Serializa o SVG
+			const xml  = new XMLSerializer().serializeToString(svgEl);
+			const url  = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+
+			// Carrega o SVG como imagem
+			const img = new Image();
+			img.onload = () => {
+			  const cw = Math.max(1, img.width);
+			  const ch = Math.max(1, img.height);
+
+			  const SCALE = 2;     // qualidade
+			  const PAD   = 24;    // margem (px, antes do scale)
+			  const padPx = PAD * SCALE;
+
+			  // Canvas maior (com bleed)
+			  const canvas = document.createElement('canvas');
+			  canvas.width  = Math.round(cw * SCALE + padPx * 2);
+			  canvas.height = Math.round(ch * SCALE + padPx * 2);
+			  const ctx = canvas.getContext('2d');
+
+			  // Escala e traduz para desenhar com margem
+			  ctx.setTransform(SCALE, 0, 0, SCALE, padPx, padPx);
+			  ctx.drawImage(img, 0, 0);
+
+			  // Dimensões totais já considerando a margem (em px "1x")
+			  const totalW = cw + PAD * 2;
+			  const totalH = ch + PAD * 2;
+
+			  // jsPDF
+			  const { jsPDF } = window.jspdf || {};
+			  if (!jsPDF){ alert('jsPDF não disponível.'); return; }
+
+			  const landscape = totalW >= totalH;
+			  const pdf = new jsPDF({ orientation: landscape ? 'l' : 'p', unit: 'pt', format: 'a4' });
+
+			  const pageW = pdf.internal.pageSize.getWidth();
+			  const pageH = pdf.internal.pageSize.getHeight();
+			  const margin = 24;
+
+			  const maxW = pageW - margin * 2;
+			  const maxH = pageH - margin * 2;
+
+			  // Ajuste proporcional p/ caber na página
+			  let w = maxW;
+			  let h = totalH * (maxW / totalW);
+			  if (h > maxH) { h = maxH; w = totalW * (maxH / totalH); }
+
+			  const x = (pageW - w) / 2;
+			  const y = (pageH - h) / 2;
+
+			  pdf.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, w, h);
+			  pdf.save(`PathFinder - ${title}.pdf`);
+			};
+			img.onerror = () => alert('Falha ao ler o SVG para imagem.');
+			img.src = url;
+		  }
         // Expor para onclick=""
         window.copySearchLink = copySearchLink;
         window.downloadSVG    = downloadSVG;

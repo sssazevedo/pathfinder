@@ -177,19 +177,16 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            // Mermaid
             mermaid.initialize({ startOnLoad: false, securityLevel: 'loose', theme: 'default' });
             const nodes = Array.from(document.querySelectorAll('.mermaid')).filter(el => (el.textContent || '').trim().length > 0);
             if (nodes.length) mermaid.run({ nodes });
 
-            // Loader
             document.getElementById('search-form').addEventListener('submit', function () {
                 document.body.classList.add('loading');
                 const button = this.querySelector('button[type="submit"]');
                 if (button) { button.disabled = true; button.textContent = 'Processando...'; }
             });
 
-            // Histórico
             loadHistory();
         });
         
@@ -218,11 +215,23 @@
                 const link = document.createElement('a');
                 link.textContent = `${item.p1_name} → ${item.p2_name}`;
                 link.title = `Procurar por ${item.p1_id} e ${item.p2_id}`;
+                link.href = "#";
                 link.addEventListener('click', function(e) {
                     e.preventDefault();
                     person1Input.value = item.p1_id;
                     person2Input.value = item.p2_id;
-                    searchForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                    
+                    // --- INÍCIO DA CORREÇÃO ---
+                    // Aciona manualmente a UI de carregamento
+                    document.body.classList.add('loading');
+                    const btn = searchForm.querySelector('button[type="submit"]');
+                    if (btn) {
+                        btn.disabled = true;
+                        btn.textContent = 'Processando...';
+                    }
+                    // --- FIM DA CORREÇÃO ---
+                    
+                    searchForm.submit(); 
                 });
                 li.appendChild(link);
                 historyList.appendChild(li);
@@ -271,7 +280,6 @@
         }
         window.copySearchLink = copySearchLink;
 
-        /* --- Funções de Exportação Robustas --- */
         async function getSvgAndTitle(btn) {
             const card = btn.closest('.path-card');
             if (!card) return {};
@@ -302,7 +310,7 @@
             const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(source);
             const img = new Image();
             img.onload = () => {
-                const { width, height } = svg.getBoundingClientRect(); // Mede o tamanho real
+                const { width, height } = svg.getBoundingClientRect();
                 const SCALE = 2; 
                 const PAD = 20;
                 const canvas = document.createElement('canvas');
@@ -310,7 +318,7 @@
                 canvas.height = (height + PAD*2) * SCALE;
                 const ctx = canvas.getContext('2d');
                 ctx.scale(SCALE, SCALE);
-                ctx.fillStyle = '#FFFFFF'; // Fundo branco
+                ctx.fillStyle = '#FFFFFF';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.drawImage(img, PAD, PAD);
 
@@ -336,7 +344,7 @@
             img.onload = () => {
                 const { width, height } = svg.getBoundingClientRect();
                 const SCALE = 2;
-                const PAD = 40; // Mais padding para PDF
+                const PAD = 40;
                 
                 const canvas = document.createElement('canvas');
                 canvas.width  = (width + PAD*2) * SCALE;

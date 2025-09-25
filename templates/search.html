@@ -349,7 +349,7 @@
             };
             img.src = svg64;
         }
-        async function exportPathPDF(btn){
+		  async function exportPathPDF(btn){
 			const card  = btn.closest('.path-card');
 			const title = (card.querySelector('.path-title,h2')?.innerText || 'Caminho').trim();
 			const svgEl = card.querySelector('.mermaid svg');

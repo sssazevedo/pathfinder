@@ -45,8 +45,10 @@
       <button class="btn" id="btnCopyLink">Copiar link</button>
     </div>
 
-    {% if not data.paths or data.paths|length == 0 %}
-      <div class="error">Não foi possível calcular o relacionamento com acesso público.</div>
+    {% if error %}
+        <div class="error">{{ error }}</div>
+    {% elif not data.paths or data.paths|length == 0 %}
+      <div class="error">Nenhum caminho foi encontrado ou salvo neste compartilhamento.</div>
     {% endif %}
 
     {% for p in data.paths %}
@@ -68,7 +70,9 @@
       </div>
     {% endfor %}
 
-    <footer>Visualização pública instantânea • Compartilhamento: {{ slug }}</footer>
+    <footer>
+        {% if slug %}Compartilhamento: {{ slug }}{% else %}Visualização pública instantânea{% endif %}
+    </footer>
   </div>
 
 <script>
@@ -95,7 +99,7 @@
     const source = `<?xml version="1.0" encoding="UTF-8"?>\n` + xml;
     return { source, title, svg };
   }
-
+  
   async function downloadSVG(idx){
     const { source, title } = await getSvgAndTitle(idx);
     if(!source) return;
@@ -158,38 +162,47 @@
     const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(source);
     const img = new Image();
     img.onload = () => {
-      const { width, height } = svg.getBoundingClientRect();
-      const SCALE = 2;
-      const PAD = 40;
+        const { width: imgW, height: imgH } = svg.getBoundingClientRect();
+        const PAD = 40;
+        const totalW = imgW + PAD * 2;
+        const totalH = imgH + PAD * 2;
 
-      const canvas = document.createElement('canvas');
-      canvas.width  = Math.round((width + PAD*2) * SCALE);
-      canvas.height = Math.round((height + PAD*2) * SCALE);
-      const ctx = canvas.getContext('2d');
-      ctx.scale(SCALE, SCALE);
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, PAD, PAD);
-      
-      const totalW = width + PAD*2;
-      const totalH = height + PAD*2;
-      const landscape = totalW >= totalH;
-      const pdf = new jsPDF({ orientation: landscape ? 'l' : 'p', unit: 'pt', format: 'a4' });
-      
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const margin = 24;
-      const maxW = pageW - margin*2;
-      const maxH = pageH - margin*2;
-      
-      let drawW = maxW, drawH = totalH * (maxW / totalW);
-      if (drawH > maxH) { drawH = maxH; drawW = totalH * (maxH / totalH); }
-      
-      const x = (pageW - drawW)/2;
-      const y = (pageH - drawH)/2;
-      
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, drawW, drawH);
-      pdf.save(`PathFinder - ${title}.pdf`);
+        const canvas = document.createElement('canvas');
+        const SCALE = 2;
+        canvas.width  = totalW * SCALE;
+        canvas.height = totalH * SCALE;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(SCALE, SCALE);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, PAD, PAD);
+
+        const landscape = totalW > totalH;
+        const pdf = new jsPDF({ orientation: landscape ? 'l' : 'p', unit: 'pt', format: 'a4' });
+
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
+        const pageMargin = 40;
+        const contentW = pageW - pageMargin * 2;
+        const contentH = pageH - pageMargin * 2;
+
+        const imgAspectRatio = totalW / totalH;
+        const contentAspectRatio = contentW / contentH;
+
+        let finalW, finalH;
+        if (imgAspectRatio > contentAspectRatio) {
+            finalW = contentW;
+            finalH = finalW / imgAspectRatio;
+        } else {
+            finalH = contentH;
+            finalW = finalH * imgAspectRatio;
+        }
+
+        const x = (pageW - finalW) / 2;
+        const y = (pageH - finalH) / 2;
+        
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, finalW, finalH);
+        pdf.save(`PathFinder - ${title}.pdf`);
     };
     img.onerror = () => alert('Falha ao ler o SVG para imagem.');
     img.src = url;

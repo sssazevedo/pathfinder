@@ -220,17 +220,9 @@
                     e.preventDefault();
                     person1Input.value = item.p1_id;
                     person2Input.value = item.p2_id;
-                    
-                    // --- INÍCIO DA CORREÇÃO ---
-                    // Aciona manualmente a UI de carregamento
                     document.body.classList.add('loading');
                     const btn = searchForm.querySelector('button[type="submit"]');
-                    if (btn) {
-                        btn.disabled = true;
-                        btn.textContent = 'Processando...';
-                    }
-                    // --- FIM DA CORREÇÃO ---
-                    
+                    if (btn) { btn.disabled = true; btn.textContent = 'Processando...'; }
                     searchForm.submit(); 
                 });
                 li.appendChild(link);
@@ -280,6 +272,7 @@
         }
         window.copySearchLink = copySearchLink;
 
+        /* --- Funções de Exportação Robustas --- */
         async function getSvgAndTitle(btn) {
             const card = btn.closest('.path-card');
             if (!card) return {};
@@ -342,46 +335,53 @@
             const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(source);
             const img = new Image();
             img.onload = () => {
-                const { width, height } = svg.getBoundingClientRect();
-                const SCALE = 2;
+                // LÓGICA DE REDIMENSIONAMENTO CORRIGIDA
+                const { width: imgW, height: imgH } = svg.getBoundingClientRect();
                 const PAD = 40;
-                
+                const totalW = imgW + PAD * 2;
+                const totalH = imgH + PAD * 2;
+
                 const canvas = document.createElement('canvas');
-                canvas.width  = (width + PAD*2) * SCALE;
-                canvas.height = (height + PAD*2) * SCALE;
+                const SCALE = 2;
+                canvas.width  = totalW * SCALE;
+                canvas.height = totalH * SCALE;
                 const ctx = canvas.getContext('2d');
                 ctx.scale(SCALE, SCALE);
                 ctx.fillStyle = '#FFFFFF';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.drawImage(img, PAD, PAD);
-                
-                const totalW = width + PAD*2;
-                const totalH = height + PAD*2;
 
-                const landscape = totalW >= totalH;
+                const landscape = totalW > totalH;
                 const pdf = new jsPDF({ orientation: landscape ? 'l' : 'p', unit: 'pt', format: 'a4' });
 
                 const pageW = pdf.internal.pageSize.getWidth();
                 const pageH = pdf.internal.pageSize.getHeight();
-                const margin = 24;
+                const pageMargin = 40;
+                const contentW = pageW - pageMargin * 2;
+                const contentH = pageH - pageMargin * 2;
 
-                const maxW = pageW - margin*2;
-                const maxH = pageH - margin*2;
+                const imgAspectRatio = totalW / totalH;
+                const contentAspectRatio = contentW / contentH;
 
-                let drawW = maxW, drawH = totalH * (maxW / totalW);
-                if (drawH > maxH) { drawH = maxH; drawW = totalH * (maxH / totalH); }
+                let finalW, finalH;
+                if (imgAspectRatio > contentAspectRatio) {
+                    finalW = contentW;
+                    finalH = finalW / imgAspectRatio;
+                } else {
+                    finalH = contentH;
+                    finalW = finalH * imgAspectRatio;
+                }
 
-                const x = (pageW - drawW)/2;
-                const y = (pageH - drawH)/2;
-
-                pdf.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, drawW, drawH);
+                const x = (pageW - finalW) / 2;
+                const y = (pageH - finalH) / 2;
+                
+                pdf.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, finalW, finalH);
                 pdf.save(`PathFinder - ${title}.pdf`);
             };
             img.onerror = () => alert('Falha ao ler o SVG para imagem.');
             img.src = url;
         }
         window.exportPathPDF = exportPathPDF;
-
     </script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
     {% if paths and paths|length > 0 %}

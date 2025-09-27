@@ -1,214 +1,238 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <meta charset="utf-8" />
-  <title>PathFinder — Visualização (somente leitura)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta property="og:title" content="Conexões no FamilySearch" />
-  <meta property="og:description" content="Visualização compartilhada do PathFinder (somente leitura)" />
-  <meta property="og:type" content="website" />
-  <style>
-    body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,'Open Sans','Helvetica Neue',sans-serif;background:#f4f4f9;margin:0}
-    .container{max-width:920px;margin:24px auto;background:#fff;border-radius:10px;box-shadow:0 4px 10px rgba(0,0,0,.08);padding:28px}
-    .header { text-align: center; border-bottom: 1px solid #e0e0e0; padding-bottom: 20px; margin-bottom: 20px; }
-    .header .logo img { max-width: 120px; }
-    h1{margin:0 0 4px;color:#0a4a86}
-    .muted{color:#666;font-size:.95rem;margin-bottom:18px}
-    .banner{background:#fff3cd;border:1px solid #ffe69c;color:#7a5a00;padding:10px 12px;border-radius:8px;margin-bottom:14px}
-    .path-card{border:1px solid #eee;border-radius:8px;padding:14px 14px 8px;margin:16px 0 24px}
-    .title-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-    .title-row h2{font-size:1rem;margin:0}
-    .btn{appearance:none;border:1px solid #d0d7de;background:#fff;border-radius:6px;padding:8px 12px;font-size:.9rem;cursor:pointer}
-    .btn:hover{background:#f6f8fa}
-    .toolbar{display:flex;gap:8px;flex-wrap:wrap}
-    .mermaid-wrap{border:1px solid #eee;border-radius:8px;background:#fafafa;margin-top:10px;overflow:auto;padding:10px}
-    footer{margin-top:18px;color:#888;font-size:.9rem;text-align:center}
-    .error{background:#fde7e9;border:1px solid #f5c2c7;color:#842029;padding:10px 12px;border-radius:8px;margin:12px 0}
-  </style>
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <meta charset="utf-8" />
+    <title>PathFinder — Visualização (somente leitura)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta property="og:title" content="Conexões no FamilySearch" />
+    <meta property="og:description" content="Visualização compartilhada do PathFinder (somente leitura)" />
+    <meta property="og:type" content="website" />
+    <style>
+        body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; background:#f4f4f9; margin:0; }
+        .container { max-width:920px; margin:24px auto; background:#fff; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,.08); padding:28px; }
+        .header { text-align: center; border-bottom: 1px solid #e0e0e0; padding-bottom: 20px; margin-bottom: 20px; }
+        .header .logo img { max-width: 200px; }
+        h1 { margin:0 0 4px; color:#0a4a86; }
+        .beta { background:#fff3cd; border:1px solid #ffeeba; color:#856404; border-radius:6px; padding:8px 12px; margin:8px 0 18px; font-size:.95rem; }
+        .muted { color:#666; font-size:.95rem; margin-bottom:18px; }
+        .path-card { border:1px solid #eee; border-radius:8px; padding:14px 14px 8px; margin:16px 0 24px; }
+        .title-row { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+        .title-row h2 { font-size:1rem; margin:0; }
+        .btn { appearance:none; border:1px solid #d0d7de; background:#fff; border-radius:6px; padding:8px 12px; font-size:.9rem; cursor:pointer; }
+        .btn:hover { background:#f6f8fa; }
+        .toolbar { display:flex; gap:8px; flex-wrap:wrap; }
+        .mermaid-wrap { border:1px solid #eee; border-radius:8px; background:#fafafa; margin-top:10px; overflow:auto; padding:10px; }
+        footer { margin-top:18px; color:#888; font-size:.9rem; text-align:center; }
+        .error { background:#ffebee; border-left:4px solid #d32f2f; color:#b71c1c; padding:10px; border-radius:6px; margin-bottom:16px; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-        <div class="logo">
-            <a href="{{ url_for('index') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="PathFinder Logo"></a>
+    <div class="container">
+        <div class="header">
+            <div class="logo">
+                <a href="{{ url_for('index') }}"><img src="{{ url_for('static', filename='images/logo.png') }}" alt="PathFinder Logo"></a>
+            </div>
         </div>
+        <h1>PathFinder — Visualização</h1>
+        <div class="beta">Beta — resultados podem conter imprecisões.</div>
+
+        {% if error %}
+            <div class="error">{{ error }}</div>
+        {% endif %}
+
+        {% if data %}
+            <div class="muted">
+                Somente leitura • IDs: {{ data.person1_id }} → {{ data.person2_id }} • Profundidade: {{ data.max_depth }}
+            </div>
+
+            <div class="toolbar" style="margin-bottom:12px">
+                <button class="btn" id="btnCopyLink">Copiar link</button>
+            </div>
+
+            {% for p in data.paths %}
+                <div class="path-card">
+                    <div class="title-row">
+                        <h2>
+                            Caminho {{ loop.index }} — {{ p.p1_name }} → {{ p.p2_name }}
+                            {% if p.degree_label %} • <em>{{ p.degree_label }}</em>{% endif %}
+                        </h2>
+
+                        <div class="toolbar">
+                            <button class="btn" onclick="downloadPNG(this)">Baixar PNG</button>
+							<button class="btn" onclick="downloadSVG(this)">Baixar SVG</button>
+                            <button class="btn" onclick="exportPathPDF(this)">Baixar PDF</button>
+                        </div>
+                    </div>
+                    <div class="mermaid-wrap">
+                        <div class="mermaid" id="g{{ loop.index0 }}">{{ p.mermaid_data | safe }}</div>
+                    </div>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <footer>
+            {% if slug %}Compartilhamento: {{ slug }}{% else %}Visualização pública instantânea{% endif %}
+        </footer>
     </div>
-    <h1>PathFinder — Visualização</h1>
-    <div class="banner">Beta — resultados podem conter imprecisões.</div>
-
-    <div class="muted">
-      Somente leitura • IDs: {{ data.person1_id }} → {{ data.person2_id }} • Profundidade: {{ data.max_depth }}
-    </div>
-
-    <div class="toolbar" style="margin-bottom:12px">
-      <button class="btn" id="btnCopyLink">Copiar link</button>
-    </div>
-
-    {% if error %}
-        <div class="error">{{ error }}</div>
-    {% elif not data.paths or data.paths|length == 0 %}
-      <div class="error">Nenhum caminho foi encontrado ou salvo neste compartilhamento.</div>
-    {% endif %}
-
-    {% for p in data.paths %}
-      <div class="path-card">
-        <div class="title-row">
-          <h2>
-            Caminho {{ loop.index }} — {{ p.p1_name }} → {{ p.p2_name }}
-            {% if p.degree_label %} • <em>{{ p.degree_label }}</em>{% endif %}
-          </h2>
-          <div class="toolbar">
-            <button class="btn" onclick="downloadSVG({{ loop.index0 }})">Baixar SVG</button>
-            <button class="btn" onclick="downloadPNG({{ loop.index0 }})">Baixar PNG</button>
-            <button class="btn" onclick="downloadPDF({{ loop.index0 }})">Baixar PDF</button>
-          </div>
-        </div>
-        <div class="mermaid-wrap">
-          <div class="mermaid" id="g{{ loop.index0 }}">{{ p.mermaid_data | safe }}</div>
-        </div>
-      </div>
-    {% endfor %}
-
-    <footer>
-        {% if slug %}Compartilhamento: {{ slug }}{% else %}Visualização pública instantânea{% endif %}
-    </footer>
-  </div>
 
 <script>
-  mermaid.initialize({ startOnLoad:false, securityLevel:'loose', theme:'default' });
-  document.addEventListener('DOMContentLoaded', () => {
-    const graphs = document.querySelectorAll('.mermaid');
-    if (graphs.length) mermaid.run({ nodes: graphs });
-    document.getElementById('btnCopyLink')?.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(window.location.href);
-        alert('Link copiado!');
-      } catch { alert('Não foi possível copiar. Copie manualmente da barra do navegador.'); }
-    });
-  });
+    // Mermaid
+    mermaid.initialize({ startOnLoad:false, securityLevel:'loose', theme:'default' });
+    document.addEventListener('DOMContentLoaded', () => {
+        const graphs = document.querySelectorAll('.mermaid');
+        if (graphs.length) mermaid.run({ nodes: graphs });
 
-  /* --- Funções de Exportação Robustas --- */
-  async function getSvgAndTitle(idx){
-    const card = document.querySelectorAll('.path-card')[idx];
-    if (!card) return {};
-    const svg = card.querySelector('.mermaid svg');
-    if(!svg){ alert('Gráfico ainda não foi renderizado.'); return {}; }
-    const title = (card.querySelector('h2')?.innerText || `Caminho ${idx+1}`).trim();
-    const xml = new XMLSerializer().serializeToString(svg);
-    const source = `<?xml version="1.0" encoding="UTF-8"?>\n` + xml;
-    return { source, title, svg };
-  }
-  
-  async function downloadSVG(idx){
-    const { source, title } = await getSvgAndTitle(idx);
-    if(!source) return;
-    const blob = new Blob([source], {type:'image/svg+xml;charset=utf-8'});
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `PathFinder - ${title}.svg`;
-    document.body.appendChild(a); a.click();
-    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
-  }
-  window.downloadSVG = downloadSVG;
-  
-  async function downloadPNG(idx){
-    const { source, title, svg } = await getSvgAndTitle(idx);
-    if(!source) return;
-    const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(source);
-    const img = new Image();
-    img.onload = function(){
-      const { width, height } = svg.getBoundingClientRect();
-      const SCALE = 2;
-      const PAD = 20;
-      const canvas = document.createElement('canvas');
-      canvas.width = (width + PAD*2) * SCALE;
-      canvas.height = (height + PAD*2) * SCALE;
-      const ctx = canvas.getContext('2d');
-      ctx.scale(SCALE, SCALE);
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, PAD, PAD);
-      
-      canvas.toBlob((blob)=>{
+        // Copiar link
+        document.getElementById('btnCopyLink')?.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(window.location.href);
+                alert('Link copiado!');
+            } catch { alert('Não foi possível copiar. Copie manualmente da barra do navegador.'); }
+        });
+    });
+
+    // ---- Export helpers ----
+    function resolveSVG(btn){
+      const scope = btn.closest('.path-card, .card, section, article, body') || document;
+      return scope.querySelector('.mermaid svg') || scope.querySelector('svg');
+    }
+
+    window.downloadSVG = function(btn){
+        const svg = resolveSVG(btn);
+        if(!svg){ alert('Gráfico ainda não renderizado.'); return; }
+        let source = svg.outerHTML;
+        if (!/^<\?xml/i.test(source)) source = '<?xml version="1.0" standalone="no"?>\n' + source;
+        const blob = new Blob([source], {type: 'image/svg+xml;charset=utf-8'});
+        const url  = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `PathFinder - ${title}.png`;
-        document.body.appendChild(a); a.click();
-        setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
-      }, 'image/png');
-    };
-    img.onerror = ()=>alert('Falha ao rasterizar o SVG.');
-    img.src = url;
-  }
-  window.downloadPNG = downloadPNG;
+        a.href = url; a.download = 'pathfinder-grafico.svg';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
 
-  async function ensureJsPDF(){
-    if (window.jspdf?.jsPDF) return window.jspdf.jsPDF;
-    return new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
-      s.onload = () => resolve(window.jspdf.jsPDF);
-      s.onerror = () => reject(new Error('Falha ao carregar jsPDF'));
-      document.head.appendChild(s);
-    });
-  }
+    window.downloadPNG = async function(btn){
+		const svg = resolveSVG(btn);
+		if(!svg){
+			alert('Gráfico ainda não renderizado.');
+			return;
+		}
 
-  async function downloadPDF(idx){
-    const { source, title, svg } = await getSvgAndTitle(idx);
-    if(!source) return;
-    const jsPDF = await ensureJsPDF();
+		try {
+			// Etapa 1: Clona o SVG e extrai suas dimensões corretas do viewBox.
+			const svgClone = svg.cloneNode(true);
+			const vb = (svg.getAttribute('viewBox')||'').split(/\s+/).map(Number);
+			const w = vb.length === 4 ? vb[2] : (svg.clientWidth || 800);
+			const h = vb.length === 4 ? vb[3] : (svg.clientHeight|| 500);
 
-    const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(source);
-    const img = new Image();
-    img.onload = () => {
-        const { width: imgW, height: imgH } = svg.getBoundingClientRect();
-        const PAD = 40;
-        const totalW = imgW + PAD * 2;
-        const totalH = imgH + PAD * 2;
+			// Etapa 2: Define explicitamente as dimensões no clone para garantir a renderização correta.
+			svgClone.setAttribute('width', w);
+			svgClone.setAttribute('height', h);
+			
+			const xml = new XMLSerializer().serializeToString(svgClone);
+			const svgDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
 
-        const canvas = document.createElement('canvas');
-        const SCALE = 2;
-        canvas.width  = totalW * SCALE;
-        canvas.height = totalH * SCALE;
-        const ctx = canvas.getContext('2d');
-        ctx.scale(SCALE, SCALE);
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, PAD, PAD);
+			// Etapa 3: Carrega o SVG como uma imagem.
+			const img = new Image();
+			img.onload = function(){
+				const scale = 2; // Fator de escala para uma imagem de alta resolução.
+				const canvas = document.createElement('canvas');
+				canvas.width = w * scale;
+				canvas.height = h * scale;
+				
+				const ctx = canvas.getContext('2d');
 
-        const landscape = totalW > totalH;
-        const pdf = new jsPDF({ orientation: landscape ? 'l' : 'p', unit: 'pt', format: 'a4' });
+				// Etapa 4: PREENCHE O FUNDO COM BRANCO.
+				ctx.fillStyle = '#FFFFFF';
+				ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        const pageW = pdf.internal.pageSize.getWidth();
-        const pageH = pdf.internal.pageSize.getHeight();
-        const pageMargin = 40;
-        const contentW = pageW - pageMargin * 2;
-        const contentH = pageH - pageMargin * 2;
+				// Etapa 5: Desenha a imagem do gráfico sobre o fundo branco.
+				// O uso de setTransform garante uma renderização de alta qualidade.
+				ctx.setTransform(scale, 0, 0, scale, 0, 0);
+				ctx.drawImage(img, 0, 0);
 
-        const imgAspectRatio = totalW / totalH;
-        const contentAspectRatio = contentW / contentH;
+				// Etapa 6: Cria e aciona o link de download para o PNG gerado.
+				const pngUrl = canvas.toDataURL('image/png');
+				const a = document.createElement('a');
+				a.href = pngUrl;
+				a.download = 'pathfinder-grafico.png';
+				document.body.appendChild(a);
+				a.click();
+				document.body.removeChild(a);
+			};
+			
+			img.onerror = () => alert('Ocorreu uma falha ao carregar o gráfico como imagem.');
+			img.src = svgDataUrl;
 
-        let finalW, finalH;
-        if (imgAspectRatio > contentAspectRatio) {
-            finalW = contentW;
-            finalH = finalW / imgAspectRatio;
-        } else {
-            finalH = contentH;
-            finalW = finalH * imgAspectRatio;
-        }
+		} catch(e) {
+			console.error("Falha na exportação para PNG:", e);
+			alert("Não foi possível gerar o PNG. Verifique o console do navegador para mais detalhes.");
+		}
+	}
 
-        const x = (pageW - finalW) / 2;
-        const y = (pageH - finalH) / 2;
-        
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', x, y, finalW, finalH);
-        pdf.save(`PathFinder - ${title}.pdf`);
-    };
-    img.onerror = () => alert('Falha ao ler o SVG para imagem.');
-    img.src = url;
-  }
-  window.downloadPDF = downloadPDF;
+    window.exportPathPDF = async function(btn){
+		const card = btn.closest('.path-card');
+		const titleEl = card.querySelector('h2') || card.querySelector('.path-title');
+		const title = (titleEl?.innerText || 'Caminho').trim();
+		const svgEl = resolveSVG(btn);
+
+		if (!svgEl) {
+			alert('Gráfico ainda não renderizado.');
+			return;
+		}
+
+		// A lógica para carregar o SVG como imagem continua a mesma
+		const xml = new XMLSerializer().serializeToString(svgEl);
+		const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+		const img = new Image();
+
+		img.onload = () => {
+			try {
+				const { jsPDF } = window.jspdf || {};
+				if (!jsPDF) { alert('jsPDF não disponível.'); return; }
+
+				// Etapa 1: Desenhar a imagem em um canvas com fundo branco
+				const scale = 2; // Mantém a alta resolução
+				const canvas = document.createElement('canvas');
+				canvas.width = img.width * scale;
+				canvas.height = img.height * scale;
+				const ctx = canvas.getContext('2d');
+				ctx.fillStyle = '#FFFFFF';
+				ctx.fillRect(0, 0, canvas.width, canvas.height);
+				ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+				// Etapa 2: **A MUDANÇA PRINCIPAL** - Converter o canvas para JPEG
+				const imageData = canvas.toDataURL('image/jpeg', 0.95);
+
+				// Etapa 3: Criar o PDF usando a imagem JPEG
+				const landscape = img.width >= img.height;
+				const pdf = new jsPDF({ orientation: landscape ? 'l' : 'p', unit: 'pt', format: 'a4' });
+
+				const pageW = pdf.internal.pageSize.getWidth();
+				const pageH = pdf.internal.pageSize.getHeight();
+				const margin = 24;
+				const maxW = pageW - margin * 2, maxH = pageH - margin * 2;
+
+				let w = maxW, h = img.height * (maxW / img.width);
+				if (h > maxH) { h = maxH; w = img.width * (maxH / img.height); }
+
+				const x = (pageW - w) / 2, y = (pageH - h) / 2;
+
+				// Adicionar a imagem especificando o formato JPEG
+				pdf.addImage(imageData, 'JPEG', x, y, w, h);
+				pdf.save(`PathFinder - ${title}.pdf`);
+			} catch (e) {
+				console.error("Falha ao gerar PDF:", e);
+				alert("Não foi possível gerar o PDF. Verifique o console para mais detalhes.");
+			}
+		};
+
+		img.onerror = () => alert('Falha ao carregar o SVG para a exportação em PDF.');
+		img.src = url;
+	}
 </script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
+
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
 </body>
 </html>

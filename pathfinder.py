@@ -198,6 +198,7 @@ _person_cache = TTLCache()
 # -------------------------------------------------------------
 # FamilySearch API helpers (com cache)
 # -------------------------------------------------------------
+# (Substitua a sua função get_person_with_relatives por esta)
 def get_person_with_relatives(person_id, headers):
     """
     Lê /platform/tree/persons/{id} (JSON) e extrai:
@@ -209,21 +210,23 @@ def get_person_with_relatives(person_id, headers):
     """
     cached = _person_cache.get(person_id)
     if cached is not None:
+        if DEBUG_FS: print(f"[DEBUG][Cache] Cache HIT para {person_id}") # >>> NOVO DEBUG
         return cached
 
     url = f"{API_BASE_URL}/platform/tree/persons/{person_id}"
     
-    if DEBUG_FS: print(f"[DEBUG] Tentando conectar a: {url}")
+    # >>> NOVO DEBUG: Log antes de fazer a chamada
+    if DEBUG_FS: print(f"[DEBUG] Buscando na API para: {person_id} | URL: {url}")
     
     try:
         r = session_http.get(url, headers=headers, verify=False, timeout=DEFAULT_TIMEOUT)
         
-        if DEBUG_FS: print(f"[DEBUG] Recebida resposta da API para {person_id}. Status: {r.status_code}")
+        # >>> NOVO DEBUG: Log do status da resposta
+        if DEBUG_FS: print(f"[DEBUG] Resposta da API para {person_id}. Status: {r.status_code}")
         
-    except requests.exceptions.RequestException:
-        
+    except requests.exceptions.RequestException as e:
+        # >>> NOVO DEBUG: Log de erro de conexão
         if DEBUG_FS: print(f"[DEBUG] ERRO DE CONEXÃO para {person_id}: {e}")
-    
         result = (None, [], [], [])
         _person_cache.set(person_id, result)
         return result
@@ -233,8 +236,6 @@ def get_person_with_relatives(person_id, headers):
 
     if r.status_code == 200:
         data = r.json()
-        
-        if DEBUG_FS: print(f"[DEBUG] API Response for {person_id}: Parents={list(parents)}, Spouses={list(spouses)}")
         
         if data.get("persons"):
             details = data["persons"][0]
@@ -257,6 +258,14 @@ def get_person_with_relatives(person_id, headers):
                 b = (rel.get("person2") or {}).get("resourceId")
                 if a == person_id and b: spouses.add(b)
                 elif b == person_id and a: spouses.add(a)
+        
+        # >>> NOVO DEBUG: Log dos dados extraídos
+        if DEBUG_FS: print(f"[DEBUG] Dados extraídos para {person_id}: Pais={list(parents)}, Cônjuges={list(spouses)}")
+
+    else:
+        # >>> NOVO DEBUG: Log se a resposta da API não for 200 OK
+        if DEBUG_FS: print(f"[DEBUG] Resposta de erro da API para {person_id}: {r.text[:500]}")
+
 
     result = (details, list(parents), list(children), list(spouses))
     _person_cache.set(person_id, result)
@@ -371,6 +380,8 @@ def post_process_paths(paths_with_ancestors, headers, keep_within=3, max_paths=8
 # -------------------------------------------------------------
 # Busca (BFS) – sobe APENAS por pais dos dois lados
 # -------------------------------------------------------------
+# (Substitua a sua função find_paths por esta)
+# (Substitua a sua função find_paths por esta versão corrigida)
 def find_paths(person1_id, person2_id, headers, max_depth=8):
     max_nodes = 10000
     expanded = 0
@@ -388,57 +399,64 @@ def find_paths(person1_id, person2_id, headers, max_depth=8):
     depth = 0
     best_len = None
 
-    while depth < max_depth and len(paths_with_ancestors) < 50 and expanded < max_nodes:
+    # O loop principal continua enquanto houver nós para expandir e os limites não forem atingidos
+    while depth < max_depth and (q1 or q2) and len(paths_with_ancestors) < 50 and expanded < max_nodes:
         
-        if DEBUG_FS: print(f"\n[DEBUG] Depth: {depth}, Q1 size: {len(q1)}, Q2 size: {len(q2)}, Expanded: {expanded}")
+        if DEBUG_FS: print(f"\n[DEBUG] Profundidade: {depth}, Fila1: {len(q1)}, Fila2: {len(q2)}, Nós Expandidos: {expanded}")
         
-        # fronteira 1
-        q1_size = len(q1)
-        if not q1_size: break
-        for _ in range(q1_size):
-            curr_id, path = q1.popleft()
+        # >>> INÍCIO DA CORREÇÃO <<<
+        # Processa a fronteira 1 apenas se a fila não estiver vazia
+        if q1:
+            q1_size = len(q1)
+            for _ in range(q1_size):
+                curr_id, path = q1.popleft()
+                if DEBUG_FS: print(f"[DEBUG][Lado 1] Processando: {curr_id}")
 
-            if curr_id in visited2:
-                for p2 in visited2[curr_id]:
-                    full_path = path + p2[::-1][1:]
-                    paths_with_ancestors.append((full_path, curr_id))
-                    L = len(full_path)
-                    best_len = L if best_len is None else min(best_len, L)
+                if curr_id in visited2:
+                    if DEBUG_FS: print(f"[DEBUG][ENCONTRO!] ID {curr_id} achado em ambas as buscas.")
+                    for p2 in visited2[curr_id]:
+                        full_path = path + p2[::-1][1:]
+                        paths_with_ancestors.append((full_path, curr_id))
+                        L = len(full_path)
+                        best_len = L if best_len is None else min(best_len, L)
 
-            _, parents, _, _ = get_person_with_relatives(curr_id, headers)
-            for p_id in parents:
-                if p_id in path: continue
-                new_path = path + [p_id]
-                if _add_path_variant(visited1, p_id, new_path):
-                    q1.append((p_id, new_path))
-                    expanded += 1
-                    if expanded >= max_nodes: break
+                _, parents, _, _ = get_person_with_relatives(curr_id, headers)
+                for p_id in parents:
+                    if p_id in path: continue
+                    new_path = path + [p_id]
+                    if _add_path_variant(visited1, p_id, new_path):
+                        q1.append((p_id, new_path))
+                        expanded += 1
+                        if expanded >= max_nodes: break
+                if expanded >= max_nodes: break
             if expanded >= max_nodes: break
-        if expanded >= max_nodes: break
 
-        # fronteira 2
-        q2_size = len(q2)
-        if not q2_size: break
-        for _ in range(q2_size):
-            curr_id, path = q2.popleft()
+        # Processa a fronteira 2 apenas se a fila não estiver vazia
+        if q2:
+            q2_size = len(q2)
+            for _ in range(q2_size):
+                curr_id, path = q2.popleft()
+                if DEBUG_FS: print(f"[DEBUG][Lado 2] Processando: {curr_id}")
 
-            if curr_id in visited1:
-                for p1 in visited1[curr_id]:
-                    full_path = p1 + path[::-1][1:]
-                    paths_with_ancestors.append((full_path, curr_id))
-                    L = len(full_path)
-                    best_len = L if best_len is None else min(best_len, L)
+                if curr_id in visited1:
+                    if DEBUG_FS: print(f"[DEBUG][ENCONTRO!] ID {curr_id} achado em ambas as buscas.")
+                    for p1 in visited1[curr_id]:
+                        full_path = p1 + path[::-1][1:]
+                        paths_with_ancestors.append((full_path, curr_id))
+                        L = len(full_path)
+                        best_len = L if best_len is None else min(best_len, L)
 
-            _, parents, _, _ = get_person_with_relatives(curr_id, headers)
-            for p_id in parents:
-                if p_id in path: continue
-                new_path = path + [p_id]
-                if _add_path_variant(visited2, p_id, new_path):
-                    q2.append((p_id, new_path))
-                    expanded += 1
-                    if expanded >= max_nodes: break
+                _, parents, _, _ = get_person_with_relatives(curr_id, headers)
+                for p_id in parents:
+                    if p_id in path: continue
+                    new_path = path + [p_id]
+                    if _add_path_variant(visited2, p_id, new_path):
+                        q2.append((p_id, new_path))
+                        expanded += 1
+                        if expanded >= max_nodes: break
+                if expanded >= max_nodes: break
             if expanded >= max_nodes: break
-        if expanded >= max_nodes: break
+        # >>> FIM DA CORREÇÃO <<<
 
         depth += 1
         if best_len is not None and depth > best_len + 2:

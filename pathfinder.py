@@ -198,90 +198,72 @@ _person_cache = TTLCache()
 # -------------------------------------------------------------
 # FamilySearch API helpers (com cache)
 # -------------------------------------------------------------
-# (Substitua a sua função get_person_with_relatives por esta)
-def get_person_with_relatives(person_id, headers):
-    """
-    Lê /platform/tree/persons/{id} (JSON) e extrai:
-      - details
-      - parents
-      - children
-      - spouses
-    Usa cache TTL simples.
-    """
+def get_person_with_relatives_data(person_id, headers):
+    """Função base que busca e cacheia o JSON completo da API."""
     cached = _person_cache.get(person_id)
-    if cached is not None:
-        if DEBUG_FS: print(f"[DEBUG][Cache] Cache HIT para {person_id}") # >>> NOVO DEBUG
-        return cached
-
-    url = f"{API_BASE_URL}/platform/tree/persons/{person_id}"
-    
-    # >>> NOVO DEBUG: Log antes de fazer a chamada
-    if DEBUG_FS: print(f"[DEBUG] Buscando na API para: {person_id} | URL: {url}")
-    
+    if cached is not None: return cached
+    url = f"{API_BASE_URL}/platform/tree/persons/{person_id}?persons=true"
     try:
         r = session_http.get(url, headers=headers, verify=False, timeout=DEFAULT_TIMEOUT)
-        
-        # >>> NOVO DEBUG: Log do status da resposta
-        if DEBUG_FS: print(f"[DEBUG] Resposta da API para {person_id}. Status: {r.status_code}")
-        
+        if r.status_code == 200:
+            data = r.json()
+            _person_cache.set(person_id, data)
+            return data
     except requests.exceptions.RequestException as e:
-        # >>> NOVO DEBUG: Log de erro de conexão
-        if DEBUG_FS: print(f"[DEBUG] ERRO DE CONEXÃO para {person_id}: {e}")
-        result = (None, [], [], [])
-        _person_cache.set(person_id, result)
-        return result
+        if DEBUG_FS: print(f"[ERROR] API request failed for {person_id}: {e}")
+    _person_cache.set(person_id, {})
+    return {}
 
+def get_person_with_relatives(person_id, headers):
+    """Função mantida para compatibilidade com a busca exaustiva, retorna tupla."""
+    data = get_person_with_relatives_data(person_id, headers)
+    if not data: return (None, [], [], [])
+    details = data['persons'][0] if data.get('persons') else None
     parents, children, spouses = set(), set(), set()
-    details = None
+    for rel in data.get("childAndParentsRelationships", []):
+        child_id = (rel.get("child") or {}).get("resourceId")
+        p1 = (rel.get("parent1") or {}).get("resourceId")
+        p2 = (rel.get("parent2") or {}).get("resourceId")
+        if child_id == person_id:
+            if p1: parents.add(p1)
+            if p2: parents.add(p2)
+        if p1 == person_id or p2 == person_id:
+            if child_id: children.add(child_id)
+    for rel in data.get("relationships", []):
+        if rel.get("type") == "http://gedcomx.org/Couple":
+            a = (rel.get("person1") or {}).get("resourceId")
+            b = (rel.get("person2") or {}).get("resourceId")
+            if a == person_id and b: spouses.add(b)
+            elif b == person_id and a: spouses.add(a)
+    return (details, list(parents), list(children), list(spouses))
 
-    if r.status_code == 200:
-        data = r.json()
-        
-        if data.get("persons"):
-            details = data["persons"][0]
+# (Cole esta função que está faltando no seu arquivo)
 
-        # pais/filhos
-        for rel in data.get("childAndParentsRelationships", []) or []:
-            child_id = (rel.get("child") or {}).get("resourceId")
-            p1 = (rel.get("parent1") or {}).get("resourceId")
-            p2 = (rel.get("parent2") or {}).get("resourceId")
-            if child_id == person_id:
-                if p1: parents.add(p1)
-                if p2: parents.add(p2)
-            if p1 == person_id or p2 == person_id:
-                if child_id: children.add(child_id)
-
-        # cônjuges
-        for rel in data.get("relationships", []) or []:
-            if rel.get("type") == "http://gedcomx.org/Couple":
-                a = (rel.get("person1") or {}).get("resourceId")
-                b = (rel.get("person2") or {}).get("resourceId")
-                if a == person_id and b: spouses.add(b)
-                elif b == person_id and a: spouses.add(a)
-        
-        # >>> NOVO DEBUG: Log dos dados extraídos
-        if DEBUG_FS: print(f"[DEBUG] Dados extraídos para {person_id}: Pais={list(parents)}, Cônjuges={list(spouses)}")
-
-    else:
-        # >>> NOVO DEBUG: Log se a resposta da API não for 200 OK
-        if DEBUG_FS: print(f"[DEBUG] Resposta de erro da API para {person_id}: {r.text[:500]}")
-
-
-    result = (details, list(parents), list(children), list(spouses))
-    _person_cache.set(person_id, result)
-    return result
+def birth_year_from_details(details):
+    """
+    Extrai o ano de nascimento de forma eficiente a partir do objeto de detalhes da pessoa.
+    """
+    if not details: return None
+    disp = details.get("display") or {}
+    lifespan = (disp.get("lifetimeString") or "").strip()
+    if not lifespan: return None
+    # Lida com formatos como "(1888-1950)" ou apenas "1888"
+    parts = lifespan.replace('(', '').replace(')', '').split('-')
+    if parts and parts[0].strip().isdigit():
+        return int(parts[0].strip())
+    return None
 
 def get_person_name(pid, headers):
-    det, _, _, _ = get_person_with_relatives(pid, headers)
-    if not det:
-        return pid
-    disp = det.get("display") or {}
-    return disp.get("name") or det.get("id") or pid
+    data = get_person_with_relatives_data(pid, headers)
+    if not data or not data.get("persons"): return pid
+    details = data["persons"][0]
+    return (details.get("display") or {}).get("name") or pid
 
 # -------------------------------------------------------------
 # Variantes & pós-processamento (mesmo do seu app)
 # -------------------------------------------------------------
 K_PATHS_PER_NODE = 16
+MAX_NODES_GLOBAL = 10000
 
 def _edge_sig(path):
     L = len(path)
@@ -377,12 +359,154 @@ def post_process_paths(paths_with_ancestors, headers, keep_within=3, max_paths=8
         selected = candidates[:max_paths]
     return selected
 
+# >>> INÍCIO DO BLOCO PARA COPIAR E COLAR <<<
+
+def _plausible_parent(child_year, parent_year):
+    if child_year is None or parent_year is None: return True
+    gap = child_year - parent_year
+    return 12 <= gap <= 80
+
+def _get_parents_with_details(person_id, headers):
+    """OTIMIZADO: Busca pais e seus anos de nascimento em 1 chamada de API."""
+    data = get_person_with_relatives_data(person_id, headers)
+    if not data: return None, []
+    persons_map = {p["id"]: p for p in data.get("persons", [])}
+    main_person_details = persons_map.get(person_id)
+    child_year = birth_year_from_details(main_person_details)
+    parents = []
+    for rel in data.get("childAndParentsRelationships", []):
+        if (rel.get("child", {}).get("resourceId")) == person_id:
+            for p_key in ("parent1", "parent2"):
+                p_id = rel.get(p_key, {}).get("resourceId")
+                if p_id:
+                    p_details = persons_map.get(p_id)
+                    parent_year = birth_year_from_details(p_details)
+                    parents.append((p_id, parent_year))
+    return child_year, parents
+
+def ascend_only_path(start_pid, end_pid, headers, max_depth=20):
+    """Verificação rápida para ancestralidade direta subindo por AMBOS os pais.
+    Faz uma BFS apenas-ascendente limitada por profundidade e retorna o caminho se achar.
+    """
+    from collections import deque
+
+    if start_pid == end_pid:
+        return [start_pid]
+
+    visited = {start_pid}
+    queue = deque([(start_pid, [start_pid], 0)])
+
+    while queue:
+        curr_id, path, depth = queue.popleft()
+        if depth >= max_depth:
+            continue
+
+        _, parents = _get_parents_with_details(curr_id, headers)
+        if not parents:
+            continue
+
+        # Explora **todos os pais** disponíveis
+        for p_id, _parent_year in parents:
+            if p_id in visited:
+                continue
+            new_path = path + [p_id]
+            if p_id == end_pid:
+                return new_path
+            visited.add(p_id)
+            queue.append((p_id, new_path, depth + 1))
+
+    return None
+
+
+def find_paths(person1_id, person2_id, headers, max_depth=8, use_exhaustive=False):
+    """
+    Decide qual algoritmo de busca usar.
+    - Padrão (Falso): usa a busca rápida com heurísticas.
+    - Exaustiva (Verdadeiro): usa a busca de força bruta, melhor para primos.
+    """
+    if use_exhaustive:
+        if DEBUG_FS: print("[DEBUG] Usando modo de busca Exaustiva (para primos).")
+        return find_paths_exhaustive(person1_id, person2_id, headers, max_depth)
+    else:
+        if DEBUG_FS: print("[DEBUG] Usando modo de busca Rápida (para ancestrais diretos).")
+        return find_paths_fast(person1_id, person2_id, headers, max_depth)
+
+# (Substitua sua função find_paths_fast inteira por esta)
+
+def find_paths_fast(person1_id, person2_id, headers, max_depth=8):
+    """
+    Versão final: combina o padrão de busca correto com as otimizações de performance.
+    """
+    setattr(_add_path_variant, 'k_paths', 2) # Usamos um K balanceado
+
+    # 1) Checagem rápida para ancestralidade direta (continua sendo a primeira e mais rápida verificação)
+    direct_path = ascend_only_path(person1_id, person2_id, headers)
+    if direct_path: return [(direct_path, person2_id)]
+    direct_path_rev = ascend_only_path(person2_id, person1_id, headers)
+    if direct_path_rev: return [(list(reversed(direct_path_rev)), person1_id)]
+
+    # 2) Inicia a busca bidirecional com a ESTRUTURA DE LOOP CORRETA
+    q1, q2 = deque([(person1_id, [person1_id])]), deque([(person2_id, [person2_id])])
+    visited1, visited2 = {person1_id: [[person1_id]]}, {person2_id: [[person2_id]]}
+    paths_with_ancestors, expanded, best_len = [], 0, None
+
+    for depth in range(max_depth):
+        if expanded > MAX_NODES_GLOBAL or not (q1 and q2): break
+        if best_len is not None and depth > best_len + 1: break # Poda agressiva
+
+        if DEBUG_FS: print(f"\n[DEBUG] Profundidade: {depth}, Fila1: {len(q1)}, Fila2: {len(q2)}, Nós Expandidos: {expanded}")
+
+        # --- ESTRUTURA DE LOOP CORRIGIDA ---
+        # Expande um nível completo do Lado 1
+        q1_size = len(q1)
+        for _ in range(q1_size):
+            curr_id, path = q1.popleft()
+            if curr_id in visited2:
+                for other_path in visited2[curr_id]:
+                    full_path = path + other_path[::-1][1:]
+                    paths_with_ancestors.append((full_path, curr_id))
+                    best_len = len(full_path) if best_len is None else min(best_len, len(full_path))
+            
+            if best_len is not None and len(path) >= best_len: continue
+            
+            child_year, parents_with_years = _get_parents_with_details(curr_id, headers)
+            for p_id, parent_year in parents_with_years:
+                if p_id in path: continue
+                if not _plausible_parent(child_year, parent_year): continue
+                new_path = path + [p_id]
+                if _add_path_variant(visited1, p_id, new_path):
+                    q1.append((p_id, new_path)); expanded += 1
+
+        # Expande um nível completo do Lado 2
+        q2_size = len(q2)
+        for _ in range(q2_size):
+            curr_id, path = q2.popleft()
+            if curr_id in visited1:
+                for other_path in visited1[curr_id]:
+                    full_path = other_path + path[::-1][1:]
+                    paths_with_ancestors.append((full_path, curr_id))
+                    best_len = len(full_path) if best_len is None else min(best_len, len(full_path))
+            
+            if best_len is not None and len(path) >= best_len: continue
+
+            child_year, parents_with_years = _get_parents_with_details(curr_id, headers)
+            for p_id, parent_year in parents_with_years:
+                if p_id in path: continue
+                if not _plausible_parent(child_year, parent_year): continue
+                new_path = path + [p_id]
+                if _add_path_variant(visited2, p_id, new_path):
+                    q2.append((p_id, new_path)); expanded += 1
+    
+    return post_process_paths(paths_with_ancestors, headers)
+
+# >>> FIM DO BLOCO PARA COPIAR E COLAR <<<
+
 # -------------------------------------------------------------
 # Busca (BFS) – sobe APENAS por pais dos dois lados
 # -------------------------------------------------------------
 # (Substitua a sua função find_paths por esta)
 # (Substitua a sua função find_paths por esta versão corrigida)
-def find_paths(person1_id, person2_id, headers, max_depth=8):
+def find_paths_exhaustive(person1_id, person2_id, headers, max_depth=8):
     max_nodes = 10000
     expanded = 0
 
@@ -467,6 +591,110 @@ def find_paths(person1_id, person2_id, headers, max_depth=8):
         print(f"[PathFinder] depth={depth} expanded={expanded} best_len={best_len} "
               f"paths_raw={len(paths_with_ancestors)} paths_final={len(final_paths)}")
     return final_paths
+    
+def find_paths_exhaustive(person1_id, person2_id, headers, max_depth=8):
+    max_nodes = 10000
+    expanded = 0
+
+    q1, q2 = deque(), deque()
+    visited1, visited2 = {}, {}
+
+    q1.append((person1_id, [person1_id]))
+    visited1[person1_id] = [[person1_id]]
+
+    q2.append((person2_id, [person2_id]))
+    visited2[person2_id] = [[person2_id]]
+
+    paths_with_ancestors = []
+    depth = 0
+    best_len = None
+
+    # O loop principal continua enquanto houver nós para expandir e os limites não forem atingidos
+    while depth < max_depth and (q1 or q2) and len(paths_with_ancestors) < 50 and expanded < max_nodes:
+        
+        if DEBUG_FS: print(f"\n[DEBUG] Profundidade: {depth}, Fila1: {len(q1)}, Fila2: {len(q2)}, Nós Expandidos: {expanded}")
+        
+        # >>> INÍCIO DA CORREÇÃO <<<
+        # Processa a fronteira 1 apenas se a fila não estiver vazia
+        if q1:
+            q1_size = len(q1)
+            for _ in range(q1_size):
+                curr_id, path = q1.popleft()
+                if DEBUG_FS: print(f"[DEBUG][Lado 1] Processando: {curr_id}")
+
+                if curr_id in visited2:
+                    if DEBUG_FS: print(f"[DEBUG][ENCONTRO!] ID {curr_id} achado em ambas as buscas.")
+                    for p2 in visited2[curr_id]:
+                        full_path = path + p2[::-1][1:]
+                        paths_with_ancestors.append((full_path, curr_id))
+                        L = len(full_path)
+                        best_len = L if best_len is None else min(best_len, L)
+
+                _, parents, _, _ = get_person_with_relatives(curr_id, headers)
+                for p_id in parents:
+                    if p_id in path: continue
+                    new_path = path + [p_id]
+                    if _add_path_variant(visited1, p_id, new_path):
+                        q1.append((p_id, new_path))
+                        expanded += 1
+                        if expanded >= max_nodes: break
+                if expanded >= max_nodes: break
+            if expanded >= max_nodes: break
+
+        # Processa a fronteira 2 apenas se a fila não estiver vazia
+        if q2:
+            q2_size = len(q2)
+            for _ in range(q2_size):
+                curr_id, path = q2.popleft()
+                if DEBUG_FS: print(f"[DEBUG][Lado 2] Processando: {curr_id}")
+
+                if curr_id in visited1:
+                    if DEBUG_FS: print(f"[DEBUG][ENCONTRO!] ID {curr_id} achado em ambas as buscas.")
+                    for p1 in visited1[curr_id]:
+                        full_path = p1 + path[::-1][1:]
+                        paths_with_ancestors.append((full_path, curr_id))
+                        L = len(full_path)
+                        best_len = L if best_len is None else min(best_len, L)
+
+                _, parents, _, _ = get_person_with_relatives(curr_id, headers)
+                for p_id in parents:
+                    if p_id in path: continue
+                    new_path = path + [p_id]
+                    if _add_path_variant(visited2, p_id, new_path):
+                        q2.append((p_id, new_path))
+                        expanded += 1
+                        if expanded >= max_nodes: break
+                if expanded >= max_nodes: break
+            if expanded >= max_nodes: break
+        # >>> FIM DA CORREÇÃO <<<
+
+        depth += 1
+        if best_len is not None and depth > best_len + 2:
+            break
+
+    final_paths = post_process_paths(paths_with_ancestors, headers)
+    if DEBUG_FS:
+        print(f"[PathFinder] depth={depth} expanded={expanded} best_len={best_len} "
+              f"paths_raw={len(paths_with_ancestors)} paths_final={len(final_paths)}")
+    return final_paths
+
+# Crie esta nova função que gerencia qual busca será usada
+def find_paths(person1_id, person2_id, headers, max_depth=8, use_exhaustive=False):
+    """
+    Decide qual algoritmo de busca usar.
+    - Padrão: usa a busca rápida com heurísticas.
+    - Exaustiva: usa a busca de força bruta, melhor para primos.
+    """
+    if use_exhaustive:
+        if DEBUG_FS: print("[DEBUG] Usando modo de busca Exaustiva (para primos).")
+        # Restaura K_PATHS_PER_NODE para o valor alto necessário para esta busca
+        _add_path_variant.__globals__['K_PATHS_PER_NODE'] = 16
+        return find_paths_exhaustive(person1_id, person2_id, headers, max_depth)
+    else:
+        if DEBUG_FS: print("[DEBUG] Usando modo de busca Rápida (para ancestrais diretos).")
+        # Define um K_PATHS_PER_NODE agressivo para a busca rápida
+        _add_path_variant.__globals__['K_PATHS_PER_NODE'] = 4
+        return find_paths_fast(person1_id, person2_id, headers, max_depth)
 
 # -------------------------------------------------------------
 # Mermaid (IDs saneados + labels escapados) — caixa única p/ casal AC
@@ -680,18 +908,18 @@ def about():
 def search():
     if "access_token" not in session:
         return redirect(url_for("index"))
-
     headers = get_headers()
     if request.method == "POST":
         person1_id = (request.form.get("person1_id") or "").strip().upper()
         person2_id = (request.form.get("person2_id") or "").strip().upper()
         max_depth  = int(request.form.get("max_depth") or 8)
+        use_exhaustive_search = request.form.get("exhaustive_search") == "on"
 
         if not person1_id or not person2_id:
             return render_template("search.html", error="Informe os dois IDs.", max_depth=max_depth)
 
         t0 = time.time()
-        paths = find_paths(person1_id, person2_id, headers, max_depth=max_depth)
+        paths = find_paths(person1_id, person2_id, headers, max_depth=max_depth, use_exhaustive=use_exhaustive_search)
         elapsed = time.time() - t0
 
         paths_vm = []
@@ -699,64 +927,24 @@ def search():
             path_details = []
             for raw in raw_path:
                 if isinstance(raw, tuple):
-                    a, b = raw
-                    an = get_person_name(a, headers) or a
-                    bn = get_person_name(b, headers) or b
-                    node = {
-                        "id": f"{a}+{b}",
-                        "name": f"{an} & {bn}",
-                        "is_couple": True,
-                        "is_common_ancestor": (isinstance(ancestor, tuple) and set(raw) == set(ancestor)),
-                    }
+                    a, b = raw; an = get_person_name(a, headers) or a; bn = get_person_name(b, headers) or b
+                    node = {"id": f"{a}+{b}", "name": f"{an} & {bn}", "is_couple": True, "is_common_ancestor": (isinstance(ancestor, tuple) and set(raw) == set(ancestor))}
                 else:
                     nm = get_person_name(raw, headers) or raw
-                    node = {
-                        "id": raw,
-                        "name": nm,
-                        "is_couple": False,
-                        "is_common_ancestor": (not isinstance(ancestor, tuple) and raw == ancestor),
-                    }
+                    node = {"id": raw, "name": nm, "is_couple": False, "is_common_ancestor": (not isinstance(ancestor, tuple) and raw == ancestor)}
                 path_details.append(node)
-
-            p1_name = path_details[0]["name"] if path_details else person1_id
-            p2_name = path_details[-1]["name"] if path_details else person2_id
+            
+            p1_name, p2_name = (path_details[0]["name"], path_details[-1]["name"]) if path_details else (person1_id, person2_id)
             mermaid_data = generate_mermaid_graph(path_details)
-
             ac_idx = next((i for i, n in enumerate(path_details) if n.get("is_common_ancestor")), None)
-            deg_label = None
-            if ac_idx is not None:
-                d1 = ac_idx
-                d2 = (len(path_details) - 1) - ac_idx
-                deg_label = relationship_label(d1, d2)
-
-            paths_vm.append({
-                "nodes": path_details,
-                "p1_name": p1_name,
-                "p2_name": p2_name,
-                "mermaid_data": mermaid_data,
-                "degree_label": deg_label,
-            })
-
+            deg_label = relationship_label(ac_idx, len(path_details) - 1 - ac_idx) if ac_idx is not None else None
+            paths_vm.append({"nodes": path_details, "p1_name": p1_name, "p2_name": p2_name, "mermaid_data": mermaid_data, "degree_label": deg_label})
+        
         if not paths_vm:
-            return render_template(
-                "search.html",
-                error=f"Nenhum caminho encontrado (tempo {elapsed:.2f}s). "
-                      f"Tente aumentar a 'Profundidade Máxima' ou verifique os IDs.",
-                person1_id=person1_id,
-                person2_id=person2_id,
-                max_depth=max_depth
-            )
+            return render_template("search.html", error=f"Nenhum caminho encontrado (tempo {elapsed:.2f}s).", person1_id=person1_id, person2_id=person2_id, max_depth=max_depth)
 
-        return render_template(
-            "search.html",
-            paths=paths_vm,
-            person1_id=person1_id,
-            person2_id=person2_id,
-            max_depth=max_depth,
-            elapsed=elapsed
-        )
+        return render_template("search.html", paths=paths_vm, person1_id=person1_id, person2_id=person2_id, max_depth=max_depth, elapsed=elapsed)
 
-    # GET
     return render_template("search.html", max_depth=8)
 
 # ----- Link público leve (sem login) -----

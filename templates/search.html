@@ -60,7 +60,8 @@
 <body id="page"
       data-p1="{{ person1_id or '' }}"
       data-p2="{{ person2_id or '' }}"
-      data-depth="{{ (max_depth or 8)|int }}">
+      data-depth="{{ (max_depth or 8)|int }}"
+      data-ex="{{ (use_exhaustive|default(false))|int }}">
 
     <div class="container">
         <div class="header">
@@ -100,7 +101,7 @@
                     </select>
                 </div>
 				<div class="form-group options-group" style="flex-basis: 100%; text-align: left; margin-top: 10px;">
-					<input type="checkbox" id="exhaustive_search" name="exhaustive_search">
+					<input type="checkbox" id="exhaustive_search" name="exhaustive_search" {% if use_exhaustive %}checked{% endif %}>
 					<label for="exhaustive_search" style="font-weight: normal; display: inline;">
 						Busca Abrangente (use para encontrar primos e parentes colaterais; pode ser mais lento)
 					</label>
@@ -190,6 +191,12 @@
             .filter(el => (el.textContent || '').trim().length > 0);
             if (nodes.length) mermaid.run({ nodes });
         });
+		
+		document.addEventListener('DOMContentLoaded', function () {
+		  const chk = document.getElementById('exhaustive_search');
+		  const ex  = document.getElementById('page')?.dataset?.ex === '1';
+		  if (chk) chk.checked = ex;
+		});
 
         // Loader
         document.getElementById('search-form').addEventListener('submit', function () {
@@ -204,15 +211,23 @@
         const person1Input = document.getElementById('person1_id');
         const person2Input = document.getElementById('person2_id');
 
-        function saveSearchToHistory(p1_id, p1_name, p2_id, p2_name) {
-            if (!p1_id || !p2_id || !p1_name || !p2_name) return;
-            let history = JSON.parse(localStorage.getItem('pathfinderHistory')) || [];
-            history = history.filter(item => !(item.p1_id === p1_id && item.p2_id === p2_id));
-            history.unshift({ p1_id, p1_name, p2_id, p2_name });
-            history = history.slice(0, 5);
-            localStorage.setItem('pathfinderHistory', JSON.stringify(history));
-            loadHistory();
-        }
+		function saveSearchToHistory(p1_id, p1_name, p2_id, p2_name, exFlag) {
+			if (!p1_id || !p2_id || !p1_name || !p2_name) return;
+
+			// Se exFlag vier, usa; senão, usa o estado atual do checkbox
+			const ex = (typeof exFlag === 'boolean')
+				? exFlag
+				: (document.getElementById('exhaustive_search')?.checked === true);
+
+			let history = JSON.parse(localStorage.getItem('pathfinderHistory')) || [];
+			history = history.filter(item => !(item.p1_id === p1_id && item.p2_id === p2_id));
+			history.unshift({ p1_id, p1_name, p2_id, p2_name, ex: !!ex });
+			history = history.slice(0, 5);
+			localStorage.setItem('pathfinderHistory', JSON.stringify(history));
+			loadHistory();
+		}
+
+
         
         async function createPublicLink(){
             if (!window.__PF_SNAPSHOT__) {
@@ -265,8 +280,21 @@
                     e.preventDefault();
                     person1Input.value = item.p1_id;
                     person2Input.value = item.p2_id;
+					
+					const exChk = document.getElementById('exhaustive_search');
+					if (exChk) exChk.checked = !!item.ex; // aplica a mesma modalidade usada na busca origina
+
+					// 1) DISPARA O SUBMIT PRIMEIRO (com o botão ainda habilitado)
+					if (typeof searchForm.requestSubmit === 'function') {
+						searchForm.requestSubmit(); // ou passe o botão explicitamente (ver abaixo)
+					} else {
+						const evt = new Event('submit', { bubbles: true, cancelable: true });
+						if (searchForm.dispatchEvent(evt)) searchForm.submit();
+					}				
+
+
                     document.body.classList.add('loading');
-                    const btn = searchForm.querySelector('button[type="submit"]');
+					const btn = searchForm.querySelector('button[type="submit"]');
                     if (btn) { btn.disabled = true; btn.textContent = 'Processando...'; }
                     if (typeof searchForm.requestSubmit === 'function') { searchForm.requestSubmit(); }
                     else {
@@ -292,6 +320,12 @@
             const d  = (document.getElementById('max_depth')?.value || '8');
             const base = window.location.origin + "/view";
             const qp   = new URLSearchParams({ p1, p2, d });
+			
+			// <<< NOVO: mesma modalidade (rápida/abrangente)
+			const ex = document.getElementById('exhaustive_search')?.checked ? 1 : 0;
+			qp.set('ex', String(ex));
+
+			
             if (publicOnly) qp.set('share','1');
             const url = `${base}?${qp.toString()}`;
             navigator.clipboard.writeText(url).then(() => alert('Link copiado!'), () => {
@@ -451,7 +485,13 @@
         max_depth:  {{ (max_depth or 8)|int }},
         paths: {{ paths|tojson }}
       };
-      saveSearchToHistory('{{ person1_id }}', '{{ paths[0].p1_name|e }}', '{{ person2_id }}', '{{ paths[0].p2_name|e }}');
+      saveSearchToHistory(
+		  '{{ person1_id }}',
+		  '{{ paths[0].p1_name|e }}',
+		  '{{ person2_id }}',
+		  '{{ paths[0].p2_name|e }}',
+		  {{ 'true' if use_exhaustive else 'false' }}
+		);
     </script>
     {% endif %}
 

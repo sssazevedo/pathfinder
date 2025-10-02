@@ -908,18 +908,32 @@ def about():
 def search():
     if "access_token" not in session:
         return redirect(url_for("index"))
+
     headers = get_headers()
+
     if request.method == "POST":
         person1_id = (request.form.get("person1_id") or "").strip().upper()
         person2_id = (request.form.get("person2_id") or "").strip().upper()
         max_depth  = int(request.form.get("max_depth") or 8)
-        use_exhaustive_search = request.form.get("exhaustive_search") == "on"
+        # << NOVO: garanta booleano
+        use_exhaustive_search = (request.form.get("exhaustive_search") in ("on", "1", "true", "True"))
 
         if not person1_id or not person2_id:
-            return render_template("search.html", error="Informe os dois IDs.", max_depth=max_depth)
+            return render_template(
+                "search.html",
+                error="Informe os dois IDs.",
+                person1_id=person1_id,
+                person2_id=person2_id,
+                max_depth=max_depth,
+                use_exhaustive=use_exhaustive_search,   # << NOVO
+            )
 
         t0 = time.time()
-        paths = find_paths(person1_id, person2_id, headers, max_depth=max_depth, use_exhaustive=use_exhaustive_search)
+        paths = find_paths(
+            person1_id, person2_id, headers,
+            max_depth=max_depth,
+            use_exhaustive=use_exhaustive_search
+        )
         elapsed = time.time() - t0
 
         paths_vm = []
@@ -927,50 +941,103 @@ def search():
             path_details = []
             for raw in raw_path:
                 if isinstance(raw, tuple):
-                    a, b = raw; an = get_person_name(a, headers) or a; bn = get_person_name(b, headers) or b
-                    node = {"id": f"{a}+{b}", "name": f"{an} & {bn}", "is_couple": True, "is_common_ancestor": (isinstance(ancestor, tuple) and set(raw) == set(ancestor))}
+                    a, b = raw
+                    an = get_person_name(a, headers) or a
+                    bn = get_person_name(b, headers) or b
+                    node = {
+                        "id": f"{a}+{b}",
+                        "name": f"{an} & {bn}",
+                        "is_couple": True,
+                        "is_common_ancestor": (isinstance(ancestor, tuple) and set(raw) == set(ancestor))
+                    }
                 else:
                     nm = get_person_name(raw, headers) or raw
-                    node = {"id": raw, "name": nm, "is_couple": False, "is_common_ancestor": (not isinstance(ancestor, tuple) and raw == ancestor)}
+                    node = {
+                        "id": raw,
+                        "name": nm,
+                        "is_couple": False,
+                        "is_common_ancestor": (not isinstance(ancestor, tuple) and raw == ancestor)
+                    }
                 path_details.append(node)
-            
+
             p1_name, p2_name = (path_details[0]["name"], path_details[-1]["name"]) if path_details else (person1_id, person2_id)
             mermaid_data = generate_mermaid_graph(path_details)
             ac_idx = next((i for i, n in enumerate(path_details) if n.get("is_common_ancestor")), None)
             deg_label = relationship_label(ac_idx, len(path_details) - 1 - ac_idx) if ac_idx is not None else None
-            paths_vm.append({"nodes": path_details, "p1_name": p1_name, "p2_name": p2_name, "mermaid_data": mermaid_data, "degree_label": deg_label})
-        
+            paths_vm.append({
+                "nodes": path_details,
+                "p1_name": p1_name,
+                "p2_name": p2_name,
+                "mermaid_data": mermaid_data,
+                "degree_label": deg_label
+            })
+
         if not paths_vm:
-            return render_template("search.html", error=f"Nenhum caminho encontrado (tempo {elapsed:.2f}s).", person1_id=person1_id, person2_id=person2_id, max_depth=max_depth)
+            return render_template(
+                "search.html",
+                error=f"Nenhum caminho encontrado (tempo {elapsed:.2f}s).",
+                person1_id=person1_id,
+                person2_id=person2_id,
+                max_depth=max_depth,
+                use_exhaustive=use_exhaustive_search,  # << NOVO
+            )
 
-        return render_template("search.html", paths=paths_vm, person1_id=person1_id, person2_id=person2_id, max_depth=max_depth, elapsed=elapsed)
+        return render_template(
+            "search.html",
+            paths=paths_vm,
+            person1_id=person1_id,
+            person2_id=person2_id,
+            max_depth=max_depth,
+            elapsed=elapsed,
+            use_exhaustive=use_exhaustive_search,      # << NOVO
+        )
 
-    return render_template("search.html", max_depth=8)
+    # GET: defina o default do checkbox (desmarcado)
+    return render_template("search.html", max_depth=8, use_exhaustive=False)  # << NOVO
+
 
 # ----- Link público leve (sem login) -----
 @app.get("/view")
 def view_public():
     """
-    Ex: /view?p1=K123-ABC&p2=L987-XYZ&d=8
-    1) tenta RF público
-    2) se falhar, tenta BFS público (quando perfis são públicos)
+    Ex: /view?p1=K123-ABC&p2=L987-XYZ&d=8[&ex=0|1]
+    - Se 'ex' vier, força o uso de find_paths no modo indicado:
+        ex=1 -> busca abrangente (exhaustive)
+        ex=0 -> busca rápida
+    - Se 'ex' não vier, mantém o comportamento atual (tenta RF e depois fallback BFS).
     """
     p1 = (request.args.get("p1") or "").strip().upper()
     p2 = (request.args.get("p2") or "").strip().upper()
     d  = int(request.args.get("d") or 8)
+    ex_arg = (request.args.get("ex") or "").strip().lower()
+
     if not p1 or not p2:
         return "Parâmetros p1 e p2 são obrigatórios.", 400
 
-    # 1) RF público
-    rf = rf_path_unauth(p1, p2)
-    if rf.get("ok"):
-        token = get_unauth_token()
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/json",
-            "User-Agent": "PathFinder/2.0",
-        }
-        path_details = build_path_details_from_ids(rf["ids"], rf["common"], headers)
+    def _render_path(headers, raw_path, ancestor):
+        # monta details como no /search
+        path_details = []
+        for raw in raw_path:
+            if isinstance(raw, tuple):
+                a, b = raw
+                an = get_person_name(a, headers) or a
+                bn = get_person_name(b, headers) or b
+                node = {
+                    "id": f"{a}+{b}",
+                    "name": f"{an} & {bn}",
+                    "is_couple": True,
+                    "is_common_ancestor": (isinstance(ancestor, tuple) and set(raw) == set(ancestor)),
+                }
+            else:
+                nm = get_person_name(raw, headers) or raw
+                node = {
+                    "id": raw,
+                    "name": nm,
+                    "is_couple": False,
+                    "is_common_ancestor": (not isinstance(ancestor, tuple) and raw == ancestor),
+                }
+            path_details.append(node)
+
         mermaid_data = generate_mermaid_graph(path_details)
         data = {
             "person1_id": p1,
@@ -979,72 +1046,92 @@ def view_public():
             "paths": [{
                 "p1_name": path_details[0]["name"],
                 "p2_name": path_details[-1]["name"],
-                "mermaid_data": mermaid_data
+                "mermaid_data": mermaid_data,
+                "degree_label": relationship_label(
+                    next((i for i, n in enumerate(path_details) if n.get("is_common_ancestor")), None),
+                    None  # a função já calcula com base nos índices
+                )
             }]
         }
         return render_template("share.html", data=data, slug=None, error=None)
 
-    # 2) Fallback: BFS público (pode funcionar para perfis falecidos)
-    token = get_unauth_token()
-    if token:
+    # --------- Se 'ex' veio, forçamos find_paths no modo indicado ---------
+    if ex_arg in ("0", "1", "true", "false", "on", "off", "yes", "no"):
+        use_exhaustive = ex_arg in ("1", "true", "on", "yes")
+
+        token = get_unauth_token()
+        if not token:
+            return render_template(
+                "share.html",
+                data={"person1_id": p1, "person2_id": p2, "max_depth": d, "paths": []},
+                slug=None,
+                error="Sem token público para FamilySearch (não foi possível calcular o caminho)."
+            )
+
         headers = {
             "Authorization": f"Bearer {token}",
             "Accept": "application/json",
             "User-Agent": "PathFinder/2.0",
         }
         try:
+            paths = find_paths(p1, p2, headers, max_depth=d, use_exhaustive=use_exhaustive)
+            if paths:
+                raw_path, ancestor = paths[0]
+                return _render_path(headers, raw_path, ancestor)
+        except Exception as e:
+            if DEBUG_FS: print("[/view forced find_paths] EXC:", e)
+
+        # Se chegou aqui, não deu para montar o caminho:
+        return render_template(
+            "share.html",
+            data={"person1_id": p1, "person2_id": p2, "max_depth": d, "paths": []},
+            slug=None,
+            error="Não foi possível calcular o relacionamento para os parâmetros informados."
+        )
+
+    # --------- Caso 'ex' NÃO venha, mantém o fluxo atual (RF -> fallback BFS) ---------
+    # 1) RF público
+    rf = rf_path_unauth(p1, p2)
+    if rf.get("ok"):
+        try:
+            ids = rf.get("ids") or []
+            # monta path_details com nomes públicos
+            token = get_unauth_token()
+            headers = {"Authorization": f"Bearer {token}", "Accept": "application/json", "User-Agent": "PathFinder/2.0"}
+            # ancestor público, se houver
+            common = rf.get("common")
+            raw_path = []
+            for i in range(len(ids) - 1):
+                raw_path.append(ids[i])
+                raw_path.append((ids[i], ids[i+1]))
+            raw_path.append(ids[-1])
+            return _render_path(headers, raw_path, common)
+        except Exception as e:
+            if DEBUG_FS: print("[/view RF public] EXC:", e)
+
+    # 2) Fallback: BFS público
+    token = get_unauth_token()
+    if token:
+        headers = {"Authorization": f"Bearer {token}", "Accept": "application/json", "User-Agent": "PathFinder/2.0"}
+        try:
             paths = find_paths(p1, p2, headers, max_depth=d)
             if paths:
                 raw_path, ancestor = paths[0]
-                # monta details como no /search
-                path_details = []
-                for raw in raw_path:
-                    if isinstance(raw, tuple):
-                        a, b = raw
-                        an = get_person_name(a, headers) or a
-                        bn = get_person_name(b, headers) or b
-                        node = {
-                            "id": f"{a}+{b}",
-                            "name": f"{an} & {bn}",
-                            "is_couple": True,
-                            "is_common_ancestor": (isinstance(ancestor, tuple) and set(raw) == set(ancestor)),
-                        }
-                    else:
-                        nm = get_person_name(raw, headers) or raw
-                        node = {
-                            "id": raw,
-                            "name": nm,
-                            "is_couple": False,
-                            "is_common_ancestor": (not isinstance(ancestor, tuple) and raw == ancestor),
-                        }
-                    path_details.append(node)
-
-                mermaid_data = generate_mermaid_graph(path_details)
-                data = {
-                    "person1_id": p1,
-                    "person2_id": p2,
-                    "max_depth": d,
-                    "paths": [{
-                        "p1_name": path_details[0]["name"],
-                        "p2_name": path_details[-1]["name"],
-                        "mermaid_data": mermaid_data
-                    }]
-                }
-                return render_template("share.html", data=data, slug=None, error=None)
+                return _render_path(headers, raw_path, ancestor)
         except Exception as e:
             if DEBUG_FS: print("[/view BFS fallback] EXC:", e)
 
-    # Mensagem amigável conforme o motivo
-    reason = rf.get("reason")
-    status = rf.get("status")
+    # Mensagem amigável
+    reason = rf.get("reason") if isinstance(rf, dict) else None
+    status = rf.get("status") if isinstance(rf, dict) else None
     msg = "Não foi possível calcular o relacionamento com acesso público."
     if status in (401, 403) or reason in ("no_token", "http"):
-        msg += " Pelo menos um dos perfis parece privado (pessoa viva) ou seu app não tem permissão pública."
+        msg += " Pelo menos um dos perfis parece privado (pessoa viva) ou o app não tem permissão pública."
     elif reason == "no_path":
         msg += " O Relationship Finder público não retornou caminho entre esses IDs."
-    # Render mínimo
     data = {"person1_id": p1, "person2_id": p2, "max_depth": d, "paths": []}
     return render_template("share.html", data=data, slug=None, error=msg)
+
 
 # ----- Snapshot de compartilhamento (sem login para visualizar) -----
 @app.post("/api/share")
